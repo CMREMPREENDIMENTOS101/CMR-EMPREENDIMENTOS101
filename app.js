@@ -2,7 +2,9 @@
 
 /* =====================================================================
  * CMR Locações — controle de equipamentos locados em obra
- * PWA offline-first. Dados em IndexedDB (equipamentos + fotos).
+ * PWA multiusuário. Dados no Supabase (tabelas locacoes / locacao_fotos,
+ * bucket privado 'locacoes'), acesso via public.is_platform_user().
+ * Snapshot local (localStorage) permite consulta sem conexão.
  * ===================================================================== */
 
 // ---------------------------------------------------------------- datas
@@ -75,66 +77,92 @@ function statusDe(e) {
 }
 const emAlerta = (e) => { const k = statusDe(e).key; return k === 'alerta' || k === 'vencido'; };
 
+const ROTULO_PER = {
+  diaria: ['diária', 'diárias'], semanal: ['semana', 'semanas'], quinzenal: ['quinzena', 'quinzenas'], mensal: ['mês', 'meses'],
+};
+const plural = (n, [um, varios]) => `${n} ${n === 1 ? um : varios}`;
+const round2 = (v) => Math.round(v * 100) / 100;
+
 /**
- * Data de referência para cobrança:
- *  - devolvido: max(devolução, fim contratado) — devolução antecipada paga o período contratado;
- *    devolução atrasada paga até a data real.
- *  - ativo: max(hoje, fim contratado) — previsão do compromisso atual.
+ * Períodos cobrados.
+ *  - proporcional (padrão): períodos cheios + dias avulsos × (valor ÷ dias do período; mensal ÷ 30).
+ *    Devolvido: cobra até a data real da devolução (antes ou depois do fim).
+ *    Ativo: projeta até max(hoje, fim do contrato). Mínimo: 1 dia.
+ *  - cheio: período iniciado = período cheio; devolução antecipada paga até o fim do contrato.
  */
-function refCobranca(e) {
-  return e.status === 'devolvido' ? maxISO(e.devolucao, e.fim) : maxISO(hoje(), e.fim);
+function calcPeriodos(e) {
+  const hj = hoje();
+  if (e.cobranca === 'cheio') {
+    const ref = e.status === 'devolvido' ? maxISO(e.devolucao, e.fim) : maxISO(hj, e.fim);
+    const n = contarPeriodos(e.entrada, ref, e.periodo);
+    return { fator: n, texto: plural(n, ROTULO_PER[e.periodo]) };
+  }
+  const ref = e.status === 'devolvido' ? e.devolucao : maxISO(hj, e.fim);
+  let n = 0;
+  while (addPeriodo(e.entrada, e.periodo, n + 1) <= ref) n++;
+  let dias = diffDias(addPeriodo(e.entrada, e.periodo, n), ref);
+  if (n === 0 && dias <= 0) dias = 1;
+  const base = PERIODOS[e.periodo].dias || 30;
+  const partes = [n && plural(n, ROTULO_PER[e.periodo]), dias && plural(dias, ['dia', 'dias'])].filter(Boolean);
+  return { fator: n + dias / base, texto: partes.join(' + ') };
 }
 function custo(e) {
-  const periodos = contarPeriodos(e.entrada, refCobranca(e), e.periodo);
-  const aluguel = e.valorManual != null && e.valorManual !== ''
-    ? Number(e.valorManual)
-    : periodos * (Number(e.valor) || 0) * (Number(e.qtd) || 1);
+  const p = calcPeriodos(e);
+  const manual = e.valorManual != null && e.valorManual !== '';
+  const aluguel = manual ? Number(e.valorManual) : round2(p.fator * (Number(e.valor) || 0) * (Number(e.qtd) || 1));
   const extras = Number(e.extras) || 0;
-  return { periodos, aluguel, extras, total: aluguel + extras, manual: e.valorManual != null && e.valorManual !== '' };
+  return { periodos: p.texto, aluguel, extras, total: round2(aluguel + extras), manual };
 }
 
-// ---------------------------------------------------------------- IndexedDB
-const DB_NAME = 'cmr-locacoes';
-let db;
-function abrirDB() {
-  return new Promise((res, rej) => {
-    const r = indexedDB.open(DB_NAME, 1);
-    r.onupgradeneeded = () => {
-      const d = r.result;
-      d.createObjectStore('equip', { keyPath: 'id' });
-      const f = d.createObjectStore('fotos', { keyPath: 'id' });
-      f.createIndex('equipId', 'equipId');
-      d.createObjectStore('kv');
-    };
-    r.onsuccess = () => res(r.result);
-    r.onerror = () => rej(r.error);
-  });
-}
-function tx(store, mode, fn) {
-  return new Promise((res, rej) => {
-    const t = db.transaction(store, mode);
-    const s = t.objectStore(store);
-    let out;
-    const req = fn(s);
-    if (req) req.onsuccess = () => { out = req.result; };
-    t.oncomplete = () => res(out);
-    t.onerror = () => rej(t.error);
-    t.onabort = () => rej(t.error);
-  });
-}
-const dbAll = (store) => tx(store, 'readonly', (s) => s.getAll());
-const dbGet = (store, key) => tx(store, 'readonly', (s) => s.get(key));
-const dbPut = (store, val, key) => tx(store, 'readwrite', (s) => (key !== undefined ? s.put(val, key) : s.put(val)));
-const dbDel = (store, key) => tx(store, 'readwrite', (s) => s.delete(key));
-const fotosDoEquip = (equipId) => tx('fotos', 'readonly', (s) => s.index('equipId').getAll(equipId));
+// ---------------------------------------------------------------- Supabase
+const SUPABASE_URL = 'https://ncsmcopvjfqfeadkzkuz.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_hzxs0yzFqh6ROaFat7uiHg_qXAt7hAk'; // chave pública; o acesso é protegido por RLS
+const BUCKET = 'locacoes';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+});
 
-const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+  const r = (Math.random() * 16) | 0; return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+}));
+
+const numOuNulo = (v) => (v === null || v === undefined || v === '' ? null : Number(v));
+function fromRow(r) {
+  return {
+    id: r.id, nome: r.nome, fornecedor: r.fornecedor || '', obra: r.obra || '', projectId: r.project_id,
+    periodo: r.periodo, cobranca: r.cobranca || 'proporcional', qtd: r.qtd, entrada: r.entrada, fim: r.fim,
+    valor: Number(r.valor) || 0, extras: Number(r.extras) || 0, valorManual: r.valor_manual == null ? '' : Number(r.valor_manual),
+    codigo: r.codigo || '', obs: r.obs || '', status: r.status, devolucao: r.devolucao, retirada: r.retirada,
+    renovacoes: r.renovacoes || [], criadoEm: r.criado_em, criadoPorEmail: r.criado_por_email,
+    atualizadoEm: r.atualizado_em, atualizadoPorEmail: r.atualizado_por_email,
+  };
+}
+function toRow(e) {
+  const proj = state.projetos.find((p) => p.name.trim().toLowerCase() === (e.obra || '').trim().toLowerCase());
+  return {
+    id: e.id, nome: e.nome, fornecedor: e.fornecedor || null, obra: e.obra || null, project_id: proj ? proj.id : null,
+    periodo: e.periodo, cobranca: e.cobranca || 'proporcional', qtd: e.qtd || 1, entrada: e.entrada, fim: e.fim,
+    valor: Number(e.valor) || 0, extras: Number(e.extras) || 0, valor_manual: numOuNulo(e.valorManual),
+    codigo: e.codigo || null, obs: e.obs || null, status: e.status, devolucao: e.devolucao || null,
+    retirada: e.retirada || null, renovacoes: e.renovacoes || [],
+  };
+}
 
 // ---------------------------------------------------------------- estado
 const CFG_PADRAO = { alertaDias: 7, notificar: false, ultimaNotif: null };
+const LS_CFG = 'cmr-locacoes-cfg';
+const LS_SNAP = 'cmr-locacoes-snapshot';
+const lerLS = (k, def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch (_) { return def; } };
+const gravarLS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) { /* cota cheia ou modo privado */ } };
+
 const state = {
+  usuario: null,       // e-mail logado
+  acesso: null,        // true | false | null (verificando)
+  offline: false,
   equip: [],
-  cfg: { ...CFG_PADRAO },
+  fotos: [],           // metadados das fotos (locacao_fotos)
+  projetos: [],        // obras da plataforma (public.projects)
+  cfg: { ...CFG_PADRAO, ...lerLS(LS_CFG, {}) },
   view: 'inicio',
   filtro: 'ativos',
   busca: '',
@@ -142,22 +170,80 @@ const state = {
   relObra: '',
   relFornecedor: '',
 };
+function salvarCfg() { gravarLS(LS_CFG, state.cfg); }
+function salvarSnapshot() { gravarLS(LS_SNAP, { em: new Date().toISOString(), usuario: state.usuario, equip: state.equip, fotos: state.fotos, projetos: state.projetos }); }
 
-async function salvarEquip(e) {
-  e.atualizadoEm = new Date().toISOString();
-  await dbPut('equip', e);
+function erroRede(err) {
+  console.error(err);
+  const msg = String(err?.message || err);
+  if (!navigator.onLine || /fetch|network/i.test(msg)) return 'Sem conexão. Tente novamente quando tiver internet.';
+  if (/row-level security|permission|JWT|401|403/i.test(msg)) return 'Sem permissão. Verifique se seu usuário está ativo.';
+  return 'Erro ao salvar: ' + msg;
+}
+
+async function carregarDados() {
+  const [l, f, p] = await Promise.all([
+    sb.from('locacoes').select('*').order('fim'),
+    sb.from('locacao_fotos').select('*').order('criado_em'),
+    sb.from('projects').select('id,name,status').order('name'),
+  ]);
+  if (l.error) throw l.error;
+  if (f.error) throw f.error;
+  state.equip = l.data.map(fromRow);
+  state.fotos = f.data;
+  state.projetos = p.error ? [] : p.data.filter((x) => x.name);
+  state.offline = false;
+  salvarSnapshot();
+}
+
+/** Grava (insert/update) e devolve a versão do servidor. Não altera o estado se falhar. */
+async function salvarEquip(e, novo = false) {
+  const row = toRow(e);
+  const q = novo ? sb.from('locacoes').insert(row) : sb.from('locacoes').update(row).eq('id', e.id);
+  const { data, error } = await q.select().single();
+  if (error) throw error;
+  mesclarEquip(fromRow(data));
+  return state.equip.find((x) => x.id === data.id);
+}
+function mesclarEquip(e) {
   const i = state.equip.findIndex((x) => x.id === e.id);
   if (i >= 0) state.equip[i] = e; else state.equip.push(e);
+  salvarSnapshot();
 }
-async function salvarCfg() { await dbPut('kv', state.cfg, 'cfg'); }
+/** Executa uma escrita, mostrando erro amigável. Retorna true se deu certo. */
+async function tentar(fn) {
+  if (state.offline && !navigator.onLine) { toast('Sem conexão: modo somente leitura.'); return false; }
+  try { await fn(); return true; } catch (err) { toast(erroRede(err)); return false; }
+}
 
 // ---------------------------------------------------------------- fotos
-const urlCache = new Map();
-function fotoURL(f) {
-  if (!urlCache.has(f.id)) urlCache.set(f.id, URL.createObjectURL(f.blob));
-  return urlCache.get(f.id);
+const fotosDe = (equipId, tipo) => state.fotos.filter((f) => f.locacao_id === equipId && (!tipo || f.tipo === tipo));
+const urlCache = new Map(); // path -> { url, exp }
+async function urlsAssinadas(paths) {
+  const agora = Date.now();
+  const faltam = [...new Set(paths)].filter((p) => !(urlCache.get(p)?.exp > agora));
+  if (faltam.length && !state.offline) {
+    const { data, error } = await sb.storage.from(BUCKET).createSignedUrls(faltam, 3600);
+    if (!error) for (const d of data) if (d.signedUrl) urlCache.set(d.path, { url: d.signedUrl, exp: agora + 3500 * 1000 });
+  }
+  return Object.fromEntries(paths.map((p) => [p, urlCache.get(p)?.url || '']));
 }
-function soltarURL(id) { const u = urlCache.get(id); if (u) { URL.revokeObjectURL(u); urlCache.delete(id); } }
+
+async function enviarFoto(equipId, tipo, blob) {
+  const path = `${equipId}/${uid()}.jpg`;
+  const up = await sb.storage.from(BUCKET).upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+  if (up.error) throw up.error;
+  const { data, error } = await sb.from('locacao_fotos').insert({ locacao_id: equipId, tipo, path }).select().single();
+  if (error) { await sb.storage.from(BUCKET).remove([path]); throw error; }
+  urlCache.set(path, { url: URL.createObjectURL(blob), exp: Date.now() + 3500 * 1000 });
+  if (!state.fotos.some((f) => f.id === data.id)) state.fotos.push(data);
+}
+async function removerFoto(f) {
+  const { error } = await sb.from('locacao_fotos').delete().eq('id', f.id);
+  if (error) throw error;
+  await sb.storage.from(BUCKET).remove([f.path]);
+  state.fotos = state.fotos.filter((x) => x.id !== f.id);
+}
 
 /** Redimensiona para no máx. 1600px, grava carimbo de data/hora e tipo na imagem (evidência). */
 async function processarFoto(file, legenda) {
@@ -192,20 +278,14 @@ async function carregarImagem(file) {
     i.src = URL.createObjectURL(file);
   });
 }
-async function adicionarFotos(equip, tipo, files) {
-  const legenda = `${tipo === 'recebimento' ? 'RECEBIMENTO' : 'ENTREGA'} · ${equip.nome}`;
-  let n = 0;
+/** Processa arquivos da câmera em JPEG com carimbo. Retorna os blobs. */
+async function processarArquivos(nome, tipo, files) {
+  const legenda = `${tipo === 'recebimento' ? 'RECEBIMENTO' : 'ENTREGA'} · ${nome}`;
+  const out = [];
   for (const f of files) {
-    try {
-      const blob = await processarFoto(f, legenda);
-      await dbPut('fotos', { id: uid(), equipId: equip.id, tipo, blob, criadoEm: new Date().toISOString() });
-      n++;
-    } catch (err) {
-      console.error(err);
-      toast('Não foi possível processar uma das fotos');
-    }
+    try { out.push(await processarFoto(f, legenda)); } catch (err) { console.error(err); toast('Não foi possível processar uma das fotos'); }
   }
-  return n;
+  return out;
 }
 
 // ---------------------------------------------------------------- helpers de UI
@@ -281,6 +361,13 @@ function confirmar(titulo, texto, rotuloOk = 'Confirmar', perigo = false) {
 
 // ---------------------------------------------------------------- render
 function render() {
+  const logado = state.usuario && state.acesso;
+  document.body.classList.toggle('sem-sessao', !logado);
+  const v = $('#view');
+  if (!state.usuario) { v.innerHTML = viewLogin(); return; }
+  if (state.acesso === null) { v.innerHTML = '<div class="empty"><div class="big">⏳</div><p>Carregando…</p></div>'; return; }
+  if (!state.acesso) { v.innerHTML = viewSemAcesso(); return; }
+
   $$('#tabbar [data-nav]').forEach((b) => b.classList.toggle('on', b.dataset.nav === state.view));
   const nAlert = state.equip.filter((e) => e.status !== 'devolvido' && emAlerta(e)).length;
   const eqBtn = $('#tabbar [data-nav="equipamentos"]');
@@ -288,22 +375,61 @@ function render() {
   if (nAlert) eqBtn.insertAdjacentHTML('beforeend', `<i class="dot">${nAlert}</i>`);
   if (navigator.setAppBadge) (nAlert ? navigator.setAppBadge(nAlert) : navigator.clearAppBadge()).catch(() => {});
 
-  const v = $('#view');
-  v.innerHTML = ({ inicio: viewInicio, agenda: viewAgenda, relatorios: viewRelatorios, equipamentos: viewEquipamentos }[state.view])();
+  const offline = state.offline ? `<div class="banner warn small">📴 Sem conexão — mostrando a última cópia salva neste aparelho (somente leitura).</div>` : '';
+  v.innerHTML = offline + ({ inicio: viewInicio, agenda: viewAgenda, relatorios: viewRelatorios, equipamentos: viewEquipamentos }[state.view])();
   carregarThumbs(v);
 }
 
+// Re-render agrupado (realtime pode disparar vários eventos seguidos); preserva o foco da busca.
+let renderT;
+function agendarRender() {
+  clearTimeout(renderT);
+  renderT = setTimeout(() => {
+    const ativo = document.activeElement?.id === 'busca' ? $('#busca').selectionStart : null;
+    render();
+    if (ativo !== null && $('#busca')) { $('#busca').focus(); $('#busca').setSelectionRange(ativo, ativo); }
+  }, 150);
+}
+
 async function carregarThumbs(root) {
-  for (const el of $$('[data-thumbs]', root)) {
-    const fotos = (await fotosDoEquip(el.dataset.thumbs)).slice(-4);
-    el.innerHTML = fotos.map((f) => `<img src="${fotoURL(f)}" alt="">`).join('');
-    el.hidden = !fotos.length;
+  const alvos = $$('[data-thumbs]', root).map((el) => ({ el, fotos: fotosDe(el.dataset.thumbs).slice(-4) })).filter((x) => x.fotos.length);
+  if (!alvos.length) return;
+  const urls = await urlsAssinadas(alvos.flatMap((x) => x.fotos.map((f) => f.path)));
+  for (const { el, fotos } of alvos) {
+    el.innerHTML = fotos.filter((f) => urls[f.path]).map((f) => `<img src="${esc(urls[f.path])}" alt="" loading="lazy">`).join('');
+    el.hidden = !el.innerHTML;
   }
+}
+
+function viewLogin() {
+  return `
+  <div class="login">
+    <img src="icons/icon.svg" alt="" width="72" height="72">
+    <h1>CMR Locações</h1>
+    <p class="muted">Controle de equipamentos locados em obra</p>
+    <form id="form-login" autocomplete="on">
+      <div class="field"><label>E-mail</label><input name="email" type="email" autocomplete="username" required inputmode="email"></div>
+      <div class="field"><label>Senha</label><input name="senha" type="password" autocomplete="current-password" required></div>
+      <button class="btn primary block" type="submit">Entrar</button>
+      <button class="btn ghost block mt" type="button" data-esqueci>Esqueci a senha</button>
+    </form>
+    <p class="muted small">Use o mesmo login da plataforma CMR. Sem acesso? Peça ao administrador.</p>
+  </div>`;
+}
+function viewSemAcesso() {
+  return `
+  <div class="empty">
+    <div class="big">🔒</div>
+    <p><b>${esc(state.usuario)}</b> não tem acesso ao controle de locações.</p>
+    <p class="small">Peça ao administrador para ativar seu usuário na plataforma CMR.</p>
+    <button class="btn outline" data-sair>Sair</button>
+  </div>`;
 }
 
 const ativos = () => state.equip.filter((e) => e.status !== 'devolvido');
 const ordenarPorFim = (a, b) => (a.fim < b.fim ? -1 : a.fim > b.fim ? 1 : a.nome.localeCompare(b.nome));
 const obras = () => [...new Set(state.equip.map((e) => e.obra).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+const obrasSugestao = () => [...new Set([...state.projetos.filter((p) => !/conclu|cancel|finaliz/i.test(p.status || '')).map((p) => p.name), ...obras()])].sort((a, b) => a.localeCompare(b));
 const fornecedores = () => [...new Set(state.equip.map((e) => e.fornecedor).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
 function cardEquip(e) {
@@ -514,7 +640,7 @@ function viewRelatorios() {
   ${bloco('Por fornecedor', agrupar('fornecedor', 'Sem fornecedor'))}
   ${bloco('Por obra', agrupar('obra', 'Sem obra'))}
   ${bloco('Por mês de entrada', meses)}
-  <p class="muted small">Regra de cálculo: períodos cobrados × valor unitário × quantidade + outros custos. Período iniciado conta como período cheio. Devolução antes do fim cobra até o fim do contrato; devolução depois do fim cobra até a data real. Ativos são projetados até o fim do contrato (ou até hoje, se vencidos). Se o contrato tiver outra regra, informe o “valor total manual” no cadastro.</p>`;
+  <p class="muted small">Regra de cálculo (padrão proporcional): períodos cheios × valor + dias avulsos × (valor ÷ dias do período; mensal ÷ 30), × quantidade, + outros custos. Devolvidos: até a data real da devolução. Ativos: projetados até o fim do contrato (ou até hoje, se vencidos). Itens marcados como “período cheio” cobram todo período iniciado e, se devolvidos antes, até o fim do contrato. Regra diferente → “valor total manual”.</p>`;
 }
 
 // ---------------------------------------------------------------- formulário
@@ -522,7 +648,7 @@ function abrirForm(id) {
   const e = id ? state.equip.find((x) => x.id === id) : null;
   const ent = e?.entrada || hoje();
   const per = e?.periodo || 'mensal';
-  const d = e || { nome: '', fornecedor: '', obra: state.obra || ultimaObra(), periodo: per, entrada: ent, fim: addPeriodo(ent, per), qtd: 1, valor: '', extras: '', codigo: '', obs: '', valorManual: '' };
+  const d = e || { nome: '', fornecedor: '', obra: state.obra || ultimaObra(), periodo: per, cobranca: 'proporcional', entrada: ent, fim: addPeriodo(ent, per), qtd: 1, valor: '', extras: '', codigo: '', obs: '', valorManual: '' };
   abrirModal(`
     <h2>${e ? 'Editar equipamento' : 'Novo equipamento'}</h2>
     <p class="muted small" style="margin:0 0 16px">Campos com * são obrigatórios.</p>
@@ -544,6 +670,9 @@ function abrirForm(id) {
         <div class="field"><label>Valor unit./período</label><input name="valor" inputmode="decimal" placeholder="R$ 0,00" value="${moneyInput(d.valor)}"></div>
         <div class="field"><label>Outros custos</label><input name="extras" inputmode="decimal" placeholder="Frete, avaria" value="${moneyInput(d.extras)}"></div>
       </div>
+      <div class="field"><label>Cobrança</label><div class="select-wrap"><select name="cobranca">
+        <option value="proporcional" ${d.cobranca !== 'cheio' ? 'selected' : ''}>Proporcional aos dias</option>
+        <option value="cheio" ${d.cobranca === 'cheio' ? 'selected' : ''}>Período cheio (iniciado = inteiro)</option></select></div></div>
       <div class="total-box" id="prev-total"></div>
       <div class="field"><label>Valor total manual (opcional)</label><input name="valorManual" inputmode="decimal" placeholder="Substitui o cálculo automático do aluguel" value="${moneyInput(d.valorManual)}"></div>
       <div class="field"><label>Código / contrato</label><input name="codigo" value="${esc(d.codigo)}" placeholder="Ex.: FS0038"></div>
@@ -558,17 +687,16 @@ function abrirForm(id) {
     </form>
     <datalist id="dl-nomes">${[...new Set(state.equip.map((x) => x.nome))].map((n) => `<option value="${esc(n)}">`).join('')}</datalist>
     <datalist id="dl-forn">${fornecedores().map((n) => `<option value="${esc(n)}">`).join('')}</datalist>
-    <datalist id="dl-obras">${obras().map((n) => `<option value="${esc(n)}">`).join('')}</datalist>`, {
+    <datalist id="dl-obras">${obrasSugestao().map((n) => `<option value="${esc(n)}">`).join('')}</datalist>`, {
     onMount: (s) => {
       const f = $('#form-eq', s);
       let fimManual = !!e;
-      // fotos pendentes (novo cadastro ainda não tem id salvo)
-      const tmpId = e?.id || uid();
-      const pendentes = [];
+      // cadastro novo: fotos ficam em memória e sobem depois que o registro existir
+      const pendentes = e ? null : [];
       const atualizar = () => {
         const tmp = lerForm(f);
         const c = custo({ ...tmp, status: 'ativo' });
-        $('#prev-total', s).innerHTML = `<div><small>${c.manual ? 'Valor manual' : `${c.periodos} período(s) × ${money(tmp.valor)} × ${tmp.qtd}`}${tmp.extras ? ` + ${money(tmp.extras)}` : ''}</small>Total previsto</div><b>${money(c.total)}</b>`;
+        $('#prev-total', s).innerHTML = `<div><small>${c.manual ? 'Valor manual' : `${c.periodos} × ${money(tmp.valor)}/${PERIODOS[tmp.periodo].nome.toLowerCase()} × ${tmp.qtd}`}${tmp.extras ? ` + ${money(tmp.extras)}` : ''}</small>Total previsto</div><b>${money(c.total)}</b>`;
       };
       f.fim.addEventListener('input', () => { fimManual = true; atualizar(); });
       const recalcFim = () => { if (!fimManual && f.entrada.value) f.fim.value = addPeriodo(f.entrada.value, f.periodo.value); atualizar(); };
@@ -577,22 +705,26 @@ function abrirForm(id) {
       f.addEventListener('input', atualizar);
       atualizar();
 
-      const gridRec = $('#fotos-rec', s);
-      montarGradeFotos(gridRec, { id: tmpId, nome: f.nome.value || 'Equipamento' }, 'recebimento', {
-        getNome: () => f.nome.value || 'Equipamento',
-        onNovo: (ids) => pendentes.push(...ids),
-      });
+      montarGradeFotos($('#fotos-rec', s), { equipId: e?.id, tipo: 'recebimento', pendentes, getNome: () => f.nome.value || 'Equipamento' });
 
+      const btSalvar = $('button[type=submit]', f);
       f.addEventListener('submit', async (ev) => {
         ev.preventDefault();
         const dados = lerForm(f);
         if (!dados.nome) return toast('Informe o nome do equipamento');
+        if (!dados.entrada || !dados.fim) return toast('Informe entrada e fim');
         if (dados.fim < dados.entrada) return toast('O fim não pode ser antes da entrada');
-        const novo = e ? { ...e, ...dados } : {
-          id: tmpId, ...dados, status: 'ativo', devolucao: null, retirada: null, renovacoes: [], criadoEm: new Date().toISOString(),
-        };
-        await salvarEquip(novo);
-        pendentes.length = 0;
+        btSalvar.disabled = true;
+        const reg = e ? { ...e, ...dados } : { id: uid(), ...dados, status: 'ativo', devolucao: null, retirada: null, renovacoes: [] };
+        const ok = await tentar(async () => {
+          await salvarEquip(reg, !e);
+          if (pendentes?.length) {
+            toast('Enviando fotos…');
+            for (const p of pendentes) await enviarFoto(reg.id, 'recebimento', p.blob);
+          }
+        });
+        btSalvar.disabled = false;
+        if (!ok) return;
         modalFechar = null;
         fecharModal();
         toast(e ? 'Alterações salvas' : 'Equipamento cadastrado');
@@ -601,17 +733,21 @@ function abrirForm(id) {
       $('[data-fechar]', s).addEventListener('click', () => fecharModal());
       const bx = $('[data-excluir]', s);
       if (bx) bx.addEventListener('click', async () => {
-        if (!(await confirmar('Excluir equipamento?', `“${e.nome}” e todas as fotos serão apagados definitivamente.`, 'Excluir', true))) return abrirForm(e.id);
-        for (const ft of await fotosDoEquip(e.id)) { await dbDel('fotos', ft.id); soltarURL(ft.id); }
-        await dbDel('equip', e.id);
+        if (!(await confirmar('Excluir equipamento?', `“${e.nome}” e todas as fotos serão apagados definitivamente para todos os usuários.`, 'Excluir', true))) return abrirForm(e.id);
+        const ok = await tentar(async () => {
+          const paths = fotosDe(e.id).map((x) => x.path);
+          const { error } = await sb.from('locacoes').delete().eq('id', e.id);
+          if (error) throw error;
+          if (paths.length) await sb.storage.from(BUCKET).remove(paths);
+        });
+        if (!ok) return;
         state.equip = state.equip.filter((x) => x.id !== e.id);
+        state.fotos = state.fotos.filter((x) => x.locacao_id !== e.id);
+        salvarSnapshot();
         toast('Equipamento excluído');
         render();
       });
-      // cancelar cadastro novo: descarta fotos órfãs
-      modalFechar = async () => {
-        if (!e) for (const pid of pendentes) { await dbDel('fotos', pid); soltarURL(pid); }
-      };
+      modalFechar = () => pendentes?.forEach((p) => URL.revokeObjectURL(p.url));
     },
   });
 }
@@ -626,6 +762,7 @@ function lerForm(f) {
     fornecedor: f.fornecedor.value.trim(),
     obra: f.obra.value.trim(),
     periodo: f.periodo.value,
+    cobranca: f.cobranca.value,
     qtd: Math.max(1, parseInt(f.qtd.value, 10) || 1),
     entrada: f.entrada.value,
     fim: f.fim.value,
@@ -637,37 +774,70 @@ function lerForm(f) {
   };
 }
 
-/** Grade de fotos com botão de câmera. equipRef precisa de id. */
-async function montarGradeFotos(grid, equipRef, tipo, { getNome, onNovo, readonly } = {}) {
+/**
+ * Grade de fotos com botão de câmera.
+ * - equipId: fotos já salvas no servidor (envio imediato).
+ * - pendentes: array em memória para cadastro ainda não salvo.
+ */
+async function montarGradeFotos(grid, { equipId, tipo, pendentes = null, getNome = () => 'Equipamento', readonly = false }) {
   const desenhar = async () => {
-    const fotos = (await fotosDoEquip(equipRef.id)).filter((f) => f.tipo === tipo);
-    grid.innerHTML = fotos.map((f) => `<div class="ph"><img src="${fotoURL(f)}" data-ver="${f.id}" alt="">${readonly ? '' : `<button type="button" class="x" data-rm="${f.id}">×</button>`}</div>`).join('')
+    let itens;
+    if (pendentes) itens = pendentes.map((p) => ({ id: p.id, url: p.url, cap: 'Ainda não enviada' }));
+    else {
+      const fotos = fotosDe(equipId, tipo);
+      const urls = await urlsAssinadas(fotos.map((f) => f.path));
+      itens = fotos.map((f) => ({ id: f.id, url: urls[f.path], cap: `${new Date(f.criado_em).toLocaleString('pt-BR')}${f.criado_por_email ? ' · ' + f.criado_por_email : ''}` }));
+    }
+    grid.innerHTML = itens.map((it) => `<div class="ph">${it.url ? `<img src="${esc(it.url)}" data-ver="${it.id}" alt="">` : ''}${readonly ? '' : `<button type="button" class="x" data-rm="${it.id}">×</button>`}</div>`).join('')
       + (readonly ? '' : `<label class="add-photo"><div><span>📷</span>Adicionar</div><input type="file" accept="image/*" multiple></label>`);
-    if (readonly && !fotos.length) grid.innerHTML = '<p class="muted small">Sem fotos.</p>';
-    $$('[data-ver]', grid).forEach((img) => img.addEventListener('click', () => verFoto(fotos.find((f) => f.id === img.dataset.ver))));
+    if (readonly && !itens.length) grid.innerHTML = '<p class="muted small">Sem fotos.</p>';
+    $$('[data-ver]', grid).forEach((img) => img.addEventListener('click', () => {
+      const it = itens.find((x) => x.id === img.dataset.ver);
+      verFoto(it.url, `${tipo === 'recebimento' ? 'Recebimento' : 'Entrega'} · ${it.cap}`);
+    }));
     $$('[data-rm]', grid).forEach((b) => b.addEventListener('click', async () => {
-      await dbDel('fotos', b.dataset.rm); soltarURL(b.dataset.rm); desenhar();
+      if (pendentes) {
+        const i = pendentes.findIndex((p) => p.id === b.dataset.rm);
+        URL.revokeObjectURL(pendentes[i].url); pendentes.splice(i, 1);
+      } else {
+        if (!(await confirmarInline(b))) return;
+        const f = state.fotos.find((x) => x.id === b.dataset.rm);
+        if (!(await tentar(() => removerFoto(f)))) return;
+      }
+      desenhar();
     }));
     const inp = $('input[type=file]', grid);
     if (inp) inp.addEventListener('change', async () => {
       const files = [...inp.files];
       if (!files.length) return;
       toast('Processando fotos…');
-      const antes = new Set((await fotosDoEquip(equipRef.id)).map((f) => f.id));
-      const n = await adicionarFotos({ id: equipRef.id, nome: getNome ? getNome() : equipRef.nome }, tipo, files);
-      const novos = (await fotosDoEquip(equipRef.id)).filter((f) => !antes.has(f.id)).map((f) => f.id);
-      if (onNovo) onNovo(novos);
-      toast(`${n} foto(s) adicionada(s)`);
+      const blobs = await processarArquivos(getNome(), tipo, files);
+      if (pendentes) {
+        for (const blob of blobs) pendentes.push({ id: uid(), blob, url: URL.createObjectURL(blob) });
+      } else {
+        let n = 0;
+        const ok = await tentar(async () => { for (const blob of blobs) { await enviarFoto(equipId, tipo, blob); n++; } });
+        if (ok) toast(`${n} foto(s) enviada(s)`);
+      }
       desenhar();
+      agendarRender();
     });
   };
   await desenhar();
 }
+/** Pede um segundo toque no "×" para apagar foto já enviada (evita exclusão acidental). */
+function confirmarInline(btn) {
+  if (btn.dataset.armado) return Promise.resolve(true);
+  btn.dataset.armado = '1'; btn.textContent = '🗑'; btn.style.background = 'var(--danger)';
+  toast('Toque de novo para apagar a foto');
+  setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armado; btn.textContent = '×'; btn.style.background = ''; } }, 3000);
+  return Promise.resolve(false);
+}
 
-function verFoto(f) {
+function verFoto(url, cap) {
   const d = document.createElement('div');
   d.className = 'viewer';
-  d.innerHTML = `<img src="${fotoURL(f)}" alt=""><button class="close" aria-label="Fechar">×</button><div class="cap">${f.tipo === 'recebimento' ? 'Recebimento' : 'Entrega'} · ${new Date(f.criadoEm).toLocaleString('pt-BR')}</div>`;
+  d.innerHTML = `<img src="${esc(url)}" alt=""><button class="close" aria-label="Fechar">×</button><div class="cap">${esc(cap)}</div>`;
   d.addEventListener('click', () => d.remove());
   document.body.appendChild(d);
 }
@@ -698,8 +868,10 @@ function abrirDetalhe(id) {
       <dt>Aluguel</dt><dd>${money(c.aluguel)}</dd>
       ${c.extras ? `<dt>Outros custos</dt><dd>${money(c.extras)}</dd>` : ''}
       <dt><b>Total</b></dt><dd><b>${money(c.total)}</b></dd>
+      <dt>Cobrança</dt><dd>${e.cobranca === 'cheio' ? 'Período cheio' : 'Proporcional'}</dd>
       ${e.codigo ? `<dt>Código</dt><dd>${esc(e.codigo)}</dd>` : ''}
     </dl>
+    <p class="muted small">Cadastrado por ${esc(e.criadoPorEmail || '—')} em ${e.criadoEm ? new Date(e.criadoEm).toLocaleString('pt-BR') : '—'}${e.atualizadoPorEmail && e.atualizadoEm !== e.criadoEm ? ` · última alteração por ${esc(e.atualizadoPorEmail)} em ${new Date(e.atualizadoEm).toLocaleString('pt-BR')}` : ''}</p>
     ${e.obs ? `<div class="note">${esc(e.obs)}</div>` : ''}
     <div class="sec-title">📷 Recebimento</div><div class="photo-grid" id="d-rec"></div>
     <div class="sec-title">📷 Entrega / devolução</div><div class="photo-grid" id="d-ent"></div>
@@ -713,8 +885,8 @@ function abrirDetalhe(id) {
       <button class="btn outline block" data-edit="${e.id}">✏️ Editar</button>
     </div>`, {
     onMount: (s) => {
-      montarGradeFotos($('#d-rec', s), e, 'recebimento');
-      montarGradeFotos($('#d-ent', s), e, 'entrega');
+      montarGradeFotos($('#d-rec', s), { equipId: e.id, tipo: 'recebimento', getNome: () => e.nome });
+      montarGradeFotos($('#d-ent', s), { equipId: e.id, tipo: 'entrega', getNome: () => e.nome });
     },
   });
 }
@@ -745,9 +917,8 @@ function abrirRenovar(id) {
       $('#ren-ok', s).addEventListener('click', async () => {
         const nova = inp.value;
         if (!nova || nova <= e.fim) return toast('A nova data deve ser depois do fim atual');
-        e.renovacoes = [...(e.renovacoes || []), { em: hoje(), de: e.fim, para: nova }];
-        e.fim = nova;
-        await salvarEquip(e);
+        const reg = { ...e, fim: nova, renovacoes: [...(e.renovacoes || []), { em: hoje(), de: e.fim, para: nova }] };
+        if (!(await tentar(() => salvarEquip(reg)))) return;
         fecharModal();
         toast(`Renovado até ${fmtLonga(nova)}`);
         render();
@@ -781,24 +952,20 @@ function abrirDevolver(id) {
         bC.disabled = !v || v > hoje() || v < e.entrada;
         if (v) {
           const c = custo({ ...e, status: 'devolvido', devolucao: v });
-          $('#dev-prev', s).innerHTML = `<div><small>${c.periodos} período(s) cobrado(s)</small>Custo final</div><b>${money(c.total)}</b>`;
+          $('#dev-prev', s).innerHTML = `<div><small>${c.manual ? 'Valor manual' : c.periodos + ' cobrado(s)'}</small>${v > hoje() ? 'Custo previsto' : 'Custo final'}</div><b>${money(c.total)}</b>`;
         }
       };
       inp.addEventListener('input', upd); upd();
-      montarGradeFotos($('#dev-fotos', s), e, 'entrega');
+      montarGradeFotos($('#dev-fotos', s), { equipId: e.id, tipo: 'entrega', getNome: () => e.nome });
       $('[data-fechar]', s).addEventListener('click', fecharModal);
       bA.addEventListener('click', async () => {
-        e.retirada = inp.value;
-        await salvarEquip(e);
+        if (!(await tentar(() => salvarEquip({ ...e, retirada: inp.value })))) return;
         fecharModal();
-        toast(`Retirada agendada para ${fmtLonga(e.retirada)}`);
+        toast(`Retirada agendada para ${fmtLonga(inp.value)}`);
         render();
       });
       bC.addEventListener('click', async () => {
-        e.status = 'devolvido';
-        e.devolucao = inp.value;
-        e.retirada = null;
-        await salvarEquip(e);
+        if (!(await tentar(() => salvarEquip({ ...e, status: 'devolvido', devolucao: inp.value, retirada: null })))) return;
         fecharModal();
         toast('Devolução registrada');
         render();
@@ -831,9 +998,9 @@ function gerarICS(lista) {
   return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//CMR Empreendimentos//Locacoes//PT', 'CALSCALE:GREGORIAN', ...ev, 'END:VCALENDAR'].join('\r\n');
 }
 
-// ---------------------------------------------------------------- CSV / backup
+// ---------------------------------------------------------------- CSV
 function exportarCSV() {
-  const cols = ['Equipamento', 'Qtd', 'Fornecedor', 'Obra', 'Período', 'Entrada', 'Fim', 'Devolução', 'Status', 'Renovações', 'Valor unit.', 'Períodos', 'Aluguel', 'Outros custos', 'Total', 'Código', 'Observações'];
+  const cols = ['Equipamento', 'Qtd', 'Fornecedor', 'Obra', 'Período', 'Entrada', 'Fim', 'Devolução', 'Status', 'Renovações', 'Cobrança', 'Valor unit.', 'Períodos', 'Aluguel', 'Outros custos', 'Total', 'Código', 'Observações', 'Cadastrado por'];
   let lista = state.equip;
   if (state.relObra) lista = lista.filter((e) => e.obra === state.relObra);
   if (state.relFornecedor) lista = lista.filter((e) => e.fornecedor === state.relFornecedor);
@@ -842,69 +1009,39 @@ function exportarCSV() {
   const linhas = [...lista].sort((a, b) => a.entrada.localeCompare(b.entrada)).map((e) => {
     const c = custo(e);
     return [e.nome, e.qtd || 1, e.fornecedor, e.obra, PERIODOS[e.periodo].nome, fmtLonga(e.entrada), fmtLonga(e.fim), e.devolucao ? fmtLonga(e.devolucao) : '',
-      statusDe(e).key, (e.renovacoes || []).length, num(e.valor), c.manual ? 'manual' : c.periodos, num(c.aluguel), num(c.extras), num(c.total), e.codigo, e.obs].map(cel).join(';');
+      statusDe(e).key, (e.renovacoes || []).length, e.cobranca === 'cheio' ? 'período cheio' : 'proporcional', num(e.valor), c.manual ? 'manual' : c.periodos, num(c.aluguel), num(c.extras), num(c.total), e.codigo, e.obs, e.criadoPorEmail].map(cel).join(';');
   });
   // BOM + ';' para o Excel pt-BR abrir direto
   entregarArquivo(`locacoes-${hoje()}.csv`, '﻿' + [cols.map(cel).join(';'), ...linhas].join('\r\n'), 'text/csv');
 }
 
-const blobToB64 = (b) => new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(b); });
-async function exportarBackup() {
-  toast('Gerando backup…');
-  const fotos = await dbAll('fotos');
-  const out = {
-    app: 'cmr-locacoes', versao: 1, geradoEm: new Date().toISOString(), cfg: state.cfg, equip: state.equip,
-    fotos: await Promise.all(fotos.map(async (f) => ({ ...f, blob: await blobToB64(f.blob) }))),
-  };
-  await entregarArquivo(`backup-locacoes-${hoje()}.json`, JSON.stringify(out), 'application/json');
-}
-async function importarBackup(file) {
-  let data;
-  try { data = JSON.parse(await file.text()); } catch (_) { return toast('Arquivo inválido'); }
-  if (data.app !== 'cmr-locacoes' || !Array.isArray(data.equip)) return toast('Este arquivo não é um backup do app');
-  if (!(await confirmar('Restaurar backup?', `${data.equip.length} equipamento(s) e ${data.fotos?.length || 0} foto(s). Itens com o mesmo ID serão substituídos; os demais são mantidos.`, 'Restaurar'))) return;
-  for (const e of data.equip) await dbPut('equip', e);
-  for (const f of data.fotos || []) {
-    const blob = await (await fetch(f.blob)).blob();
-    await dbPut('fotos', { ...f, blob });
-  }
-  state.equip = await dbAll('equip');
-  toast('Backup restaurado');
-  render();
-}
-
 // ---------------------------------------------------------------- ajustes
-async function abrirAjustes() {
-  let uso = '';
-  if (navigator.storage?.estimate) {
-    const { usage, quota } = await navigator.storage.estimate();
-    uso = `${(usage / 1048576).toFixed(1)} MB usados de ${(quota / 1048576).toFixed(0)} MB`;
-  }
-  const persist = navigator.storage?.persisted ? await navigator.storage.persisted() : false;
+function abrirAjustes() {
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   abrirModal(`
     <h2>Ajustes</h2>
-    ${!standalone ? `<div class="banner warn small mt">📲 Para usar como app: no Safari toque em Compartilhar → “Adicionar à Tela de Início”. Instalado, os dados ficam protegidos contra limpeza automática do navegador.</div>` : ''}
-    <div class="field mt"><label>Alertar com quantos dias de antecedência</label><input type="number" id="cfg-dias" inputmode="numeric" min="0" max="60" value="${state.cfg.alertaDias}"></div>
+    <p class="muted small" style="margin:0">Conectado como <b>${esc(state.usuario)}</b></p>
+    ${!standalone ? `<div class="banner warn small mt">📲 Para usar como app: no Safari toque em Compartilhar → “Adicionar à Tela de Início”.</div>` : ''}
+    <div class="field mt"><label>Alertar com quantos dias de antecedência</label><input type="number" id="cfg-dias" inputmode="numeric" min="0" max="60" value="${state.cfg.alertaDias}">
+      <div class="hint">Vale só para este aparelho.</div></div>
     <div class="switch"><div><b>Notificações</b><div class="muted small">Aviso diário ao abrir o app, e contador no ícone.</div></div>
       <button class="btn sm ${state.cfg.notificar ? 'primary' : 'outline'}" data-ativar-notif>${state.cfg.notificar ? 'Ativadas' : 'Ativar'}</button></div>
     <div class="switch"><div><b>Calendário do celular</b><div class="muted small">Lembretes que disparam mesmo com o app fechado.</div></div>
       <button class="btn sm outline" data-ics-todos>Exportar</button></div>
     <div class="sec-title">Dados</div>
-    <p class="muted small">Os dados ficam só neste aparelho. ${uso} · Armazenamento ${persist ? 'persistente ✅' : 'não persistente ⚠️'}. Faça backup periodicamente.</p>
+    <p class="muted small">Os dados ficam na nuvem da CMR e são compartilhados em tempo real com todos os usuários autorizados. Este aparelho guarda uma cópia para consulta sem internet.</p>
     <div class="sheet-actions">
-      <button class="btn outline block" data-backup>⬇ Exportar backup (com fotos)</button>
-      <label class="btn outline block">⬆ Restaurar backup<input type="file" accept="application/json,.json" id="imp" hidden></label>
       <button class="btn outline block" data-csv>⬇ Exportar planilha (CSV)</button>
+      <button class="btn outline block" data-recarregar>🔄 Recarregar dados</button>
+      <button class="btn ghost block" data-sair>Sair da conta</button>
       <button class="btn primary block" data-fechar>Fechar</button>
     </div>
-    <p class="muted small mt" style="text-align:center">CMR Locações · v1.0</p>`, {
+    <p class="muted small mt" style="text-align:center">CMR Locações · v2.0</p>`, {
     onMount: (s) => {
-      $('#cfg-dias', s).addEventListener('change', async (ev) => {
+      $('#cfg-dias', s).addEventListener('change', (ev) => {
         state.cfg.alertaDias = Math.min(60, Math.max(0, parseInt(ev.target.value, 10) || 0));
-        await salvarCfg(); render();
+        salvarCfg(); render();
       });
-      $('#imp', s).addEventListener('change', (ev) => { const f = ev.target.files[0]; if (f) { fecharModal(); importarBackup(f); } });
       $('[data-fechar]', s).addEventListener('click', fecharModal);
     },
   });
@@ -917,7 +1054,7 @@ async function ativarNotificacoes() {
   const p = await Notification.requestPermission();
   state.cfg.notificar = p === 'granted';
   state.cfg.ultimaNotif = null;
-  await salvarCfg();
+  salvarCfg();
   if (state.cfg.notificar) { toast('Notificações ativadas'); await notificarAlertas(); } else toast('Permissão negada nas configurações do aparelho');
   if ($('#modal-root').innerHTML) abrirAjustes();
   render();
@@ -937,7 +1074,7 @@ async function notificarAlertas() {
     if (reg?.showNotification) await reg.showNotification(titulo, { body: corpo, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag: 'alertas' });
     else new Notification(titulo, { body: corpo });
     state.cfg.ultimaNotif = hoje();
-    await salvarCfg();
+    salvarCfg();
   } catch (err) { console.warn(err); }
 }
 
@@ -957,7 +1094,9 @@ document.addEventListener('click', async (ev) => {
   if ('ajustes' in ds) return abrirAjustes();
   if ('ativarNotif' in ds) return ativarNotificacoes();
   if ('csv' in ds) return exportarCSV();
-  if ('backup' in ds) return exportarBackup();
+  if ('sair' in ds) { fecharModal(); await sb.auth.signOut(); return; }
+  if ('recarregar' in ds) { fecharModal(); await sincronizar(true); return; }
+  if ('esqueci' in ds) return esqueciSenha();
   if ('icsTodos' in ds) {
     const l = ativos();
     if (!l.length) return toast('Nenhuma locação ativa');
@@ -968,16 +1107,15 @@ document.addEventListener('click', async (ev) => {
     const e = state.equip.find((x) => x.id === ds.desfazerRen);
     const r = e.renovacoes[e.renovacoes.length - 1];
     if (!(await confirmar('Desfazer renovação?', `O fim volta de ${fmtLonga(r.para)} para ${fmtLonga(r.de)}.`, 'Desfazer'))) return abrirDetalhe(e.id);
-    e.renovacoes = e.renovacoes.slice(0, -1); e.fim = r.de;
-    await salvarEquip(e); toast('Renovação desfeita'); render(); return;
+    if (!(await tentar(() => salvarEquip({ ...e, renovacoes: e.renovacoes.slice(0, -1), fim: r.de })))) return;
+    toast('Renovação desfeita'); render(); return;
   }
   if (ds.reabrir) {
     const e = state.equip.find((x) => x.id === ds.reabrir);
     if (!(await confirmar('Reabrir locação?', 'O equipamento volta para a lista de ativos.', 'Reabrir'))) return abrirDetalhe(e.id);
-    e.status = 'ativo'; e.devolucao = null;
-    await salvarEquip(e); toast('Locação reaberta'); render(); return;
+    if (!(await tentar(() => salvarEquip({ ...e, status: 'ativo', devolucao: null })))) return;
+    toast('Locação reaberta'); render(); return;
   }
-  if (ds.open && !ev.target.closest('.thumbs')) return abrirDetalhe(ds.open);
   if (ds.open) return abrirDetalhe(ds.open);
 });
 
@@ -996,25 +1134,116 @@ document.addEventListener('change', (ev) => {
 });
 document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') fecharModal(); });
 // Ao voltar para o app (ou virar o dia), recalcula status/alertas
-document.addEventListener('visibilitychange', () => { if (!document.hidden && db) { if (!$('#modal-root').innerHTML) render(); notificarAlertas(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && state.acesso) sincronizar(); });
+window.addEventListener('online', () => { if (state.acesso) sincronizar(); });
+document.addEventListener('submit', async (ev) => {
+  if (ev.target.id !== 'form-login') return;
+  ev.preventDefault();
+  const f = ev.target, bt = $('button[type=submit]', f);
+  bt.disabled = true; bt.textContent = 'Entrando…';
+  const { error } = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.senha.value });
+  bt.disabled = false; bt.textContent = 'Entrar';
+  if (error) toast(/invalid/i.test(error.message) ? 'E-mail ou senha incorretos' : erroRede(error));
+});
+
+// ---------------------------------------------------------------- auth / sync
+async function esqueciSenha() {
+  const email = ($('#form-login')?.email.value || '').trim();
+  if (!email) return toast('Digite seu e-mail no campo acima');
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  toast(error ? erroRede(error) : 'Enviamos um link de redefinição para o seu e-mail');
+}
+function pedirNovaSenha() {
+  abrirModal(`
+    <div class="center-head"><div class="emoji">🔑</div><h2>Definir nova senha</h2></div>
+    <form id="form-senha"><div class="field"><label>Nova senha</label><input name="senha" type="password" minlength="8" autocomplete="new-password" required></div>
+    <button class="btn primary block" type="submit">Salvar senha</button></form>`, {
+    center: true,
+    onMount: (s) => $('#form-senha', s).addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const { error } = await sb.auth.updateUser({ password: ev.target.senha.value });
+      if (error) return toast(erroRede(error));
+      fecharModal(); toast('Senha alterada');
+    }),
+  });
+}
+
+let canal = null;
+let sincronizando = null;
+/** Busca tudo do servidor; se falhar, usa o snapshot local (modo leitura). */
+function sincronizar(avisar = false) {
+  if (sincronizando) return sincronizando;
+  sincronizando = (async () => {
+    try {
+      await carregarDados();
+      if (avisar) toast('Dados atualizados');
+    } catch (err) {
+      console.warn('sync', err);
+      const snap = lerLS(LS_SNAP, null);
+      if (snap && snap.usuario === state.usuario) {
+        state.equip = snap.equip; state.fotos = snap.fotos; state.projetos = snap.projetos || [];
+      }
+      state.offline = true;
+      if (avisar) toast(erroRede(err));
+    } finally {
+      sincronizando = null;
+    }
+    render();
+    notificarAlertas();
+  })();
+  return sincronizando;
+}
+
+function assinarRealtime() {
+  if (canal) return;
+  canal = sb.channel('locacoes-sync')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'locacoes' }, (p) => {
+      if (p.eventType === 'DELETE') state.equip = state.equip.filter((x) => x.id !== p.old.id);
+      else mesclarEquip(fromRow(p.new));
+      salvarSnapshot(); agendarRender();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'locacao_fotos' }, (p) => {
+      if (p.eventType === 'DELETE') state.fotos = state.fotos.filter((x) => x.id !== p.old.id);
+      else if (!state.fotos.some((x) => x.id === p.new.id)) state.fotos.push(p.new);
+      salvarSnapshot(); agendarRender();
+    })
+    .subscribe();
+}
+
+async function aoMudarSessao(session) {
+  const email = session?.user?.email || null;
+  if (email === state.usuario && state.acesso !== null) return;
+  state.usuario = email;
+  if (!email) {
+    state.acesso = null; state.equip = []; state.fotos = [];
+    if (canal) { sb.removeChannel(canal); canal = null; }
+    fecharModal(); render(); return;
+  }
+  // Snapshot do mesmo usuário: mostra na hora, sincroniza em seguida.
+  const snap = lerLS(LS_SNAP, null);
+  if (snap && snap.usuario === email) {
+    state.equip = snap.equip; state.fotos = snap.fotos; state.projetos = snap.projetos || []; state.acesso = true; render();
+  } else { state.acesso = null; render(); }
+  const { data, error } = await sb.rpc('is_platform_user');
+  if (error) console.warn('is_platform_user', error); // sem rede ou sem permissão de execução: o RLS decide
+  state.acesso = error ? (state.acesso ?? true) : !!data;
+  if (!state.acesso) { render(); return; }
+  await sincronizar();
+  assinarRealtime();
+}
 
 // ---------------------------------------------------------------- init
-(async function init() {
-  try {
-    db = await abrirDB();
-    state.equip = await dbAll('equip');
-    state.cfg = { ...CFG_PADRAO, ...((await dbGet('kv', 'cfg')) || {}) };
-  } catch (err) {
-    console.error(err);
-    $('#view').innerHTML = '<div class="empty"><div class="big">⚠️</div><p>Não foi possível abrir o banco de dados local. Verifique se o navegador não está em modo privado.</p></div>';
-    return;
-  }
+(function init() {
   const inicial = new URLSearchParams(location.search).get('v');
   if (inicial && ['inicio', 'agenda', 'relatorios', 'equipamentos'].includes(inicial)) state.view = inicial;
+  sb.auth.onAuthStateChange((evento, session) => {
+    if (evento === 'PASSWORD_RECOVERY') setTimeout(pedirNovaSenha, 300);
+    // callback do supabase-js não pode aguardar outras chamadas ao cliente: agenda fora dele
+    setTimeout(() => aoMudarSessao(session), 0);
+  });
   render();
   if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW', e));
   }
-  notificarAlertas();
 })();

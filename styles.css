@@ -239,3 +239,12 @@ svg { display: block; }
 .muted { color: var(--muted); }
 .small { font-size: 14px; }
 .mt { margin-top: 14px; }
+
+/* ---------- login ---------- */
+body.sem-sessao .tabbar { display: none; }
+.login { max-width: 380px; margin: 8vh auto 0; text-align: center; }
+.login img { margin: 0 auto 12px; border-radius: 18px; }
+.login h1 { margin: 0; font-size: 28px; }
+.login > p { margin: 4px 0 24px; }
+.login form { text-align: left; }
+.login .small { margin-top: 20px; }

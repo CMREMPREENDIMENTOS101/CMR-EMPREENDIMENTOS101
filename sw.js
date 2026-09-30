@@ -1,7 +1,7 @@
 // Service worker: app shell offline (cache-first) + fontes em cache sob demanda.
-const VERSAO = 'cmr-locacoes-v1';
+const VERSAO = 'cmr-locacoes-v2';
 // Suba VERSAO a cada release para forçar a limpeza do cache antigo.
-const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
+const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'vendor/supabase-2.117.2.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSAO).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
