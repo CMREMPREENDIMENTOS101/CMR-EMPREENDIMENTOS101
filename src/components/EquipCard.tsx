@@ -41,7 +41,8 @@ export default function EquipCard({ l, sit, fotos, onAbrir, onEditar, onRenovar,
   sit: Situacao
   fotos?: { recebimento: number; entrega: number }
   onAbrir: () => void
-  onEditar: () => void
+  /** Ausente = usuário sem permissão de edição */
+  onEditar?: () => void
   onRenovar: () => void
   onDevolver: () => void
 }) {
@@ -59,13 +60,15 @@ export default function EquipCard({ l, sit, fotos, onAbrir, onEditar, onRenovar,
         onKeyDown={e => { if (e.key === 'Enter') onAbrir() }}>
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-[17px] font-bold text-fg leading-tight">{l.equipamento}</h3>
-          <button
-            onClick={e => { e.stopPropagation(); onEditar() }}
-            aria-label="Editar"
-            className="w-8 h-8 -mr-1 -mt-1 shrink-0 rounded-lg flex items-center justify-center text-muted"
-          >
-            <Pencil size={16} />
-          </button>
+          {onEditar && (
+            <button
+              onClick={e => { e.stopPropagation(); onEditar() }}
+              aria-label="Editar"
+              className="w-8 h-8 -mr-1 -mt-1 shrink-0 rounded-lg flex items-center justify-center text-muted"
+            >
+              <Pencil size={16} />
+            </button>
+          )}
         </div>
 
         <p className="text-[13px] text-muted flex items-center gap-1.5 flex-wrap">

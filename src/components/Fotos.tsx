@@ -8,12 +8,13 @@ import type { Store } from '@/lib/store'
 const TITULO: Record<TipoFoto, string> = { recebimento: 'Fotos de recebimento', entrega: 'Fotos de entrega' }
 
 /** Galeria de um tipo de foto, com câmera, galeria e visualização em tela cheia */
-export default function Fotos({ store, locacaoId, tipo, onChange, readOnly }: {
+export default function Fotos({ store, locacaoId, tipo, onChange, readOnly, podeExcluir }: {
   store: Store
   locacaoId: string
   tipo: TipoFoto
   onChange?: () => void
   readOnly?: boolean
+  podeExcluir?: boolean
 }) {
   const [fotos, setFotos] = useState<(Foto & { src: string })[]>([])
   const [enviando, setEnviando] = useState(0)
@@ -107,7 +108,7 @@ export default function Fotos({ store, locacaoId, tipo, onChange, readOnly }: {
           <div className="flex items-center justify-between p-4 text-white/80" style={{ color: '#fff' }}>
             <span className="text-sm">{new Date(fotoAberta.criadoEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>
             <div className="flex gap-2">
-              {!readOnly && (
+              {!readOnly && podeExcluir && (
                 <button onClick={e => { e.stopPropagation(); remover(fotoAberta) }} aria-label="Excluir foto"
                   className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,.12)', color: '#fff' }}>
                   <Trash2 size={18} />

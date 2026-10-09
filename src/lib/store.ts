@@ -11,6 +11,8 @@ import { comprimirImagem } from './image'
  */
 export interface Store {
   modo: 'local' | 'supabase'
+  /** Admin edita dados cadastrais, exclui locações/fotos e desfaz devolução (o banco também barra) */
+  ehAdmin(): Promise<boolean>
   listar(): Promise<Locacao[]>
   salvar(l: Locacao): Promise<void>
   excluir(id: string): Promise<void>
@@ -55,6 +57,8 @@ function tx<T>(stores: string[], mode: IDBTransactionMode, fn: (t: IDBTransactio
 
 const localStore: Store = {
   modo: 'local',
+  // Modo local = um aparelho só, sem usuários
+  ehAdmin: async () => true,
   listar: () => tx<Locacao[]>(['locacoes'], 'readonly', t => t.objectStore('locacoes').getAll()),
   salvar: l => tx(['locacoes'], 'readwrite', t => { t.objectStore('locacoes').put(l) }),
   excluir: id => tx(['locacoes', 'fotos'], 'readwrite', t => {
@@ -119,7 +123,7 @@ const toRow = (l: Locacao): Row => ({
   atualizado_em: l.atualizadoEm,
 })
 
-const fromRow = (r: Row): Locacao => ({
+export const fromRow = (r: Row): Locacao => ({
   id: String(r.id),
   equipamento: String(r.equipamento ?? ''),
   descricao: String(r.descricao ?? ''),
@@ -154,6 +158,10 @@ function erro(e: { message: string } | null) {
 function supabaseStore(sb: SupabaseClient): Store {
   return {
     modo: 'supabase',
+    async ehAdmin() {
+      const { data, error } = await sb.rpc('is_platform_admin')
+      return !error && data === true
+    },
     async listar() {
       const { data, error } = await sb.from('equip_locacoes').select('*').order('data_fim')
       erro(error)

@@ -9,8 +9,8 @@ import type { Store } from '@/lib/store'
 import type { Locacao, Periodo } from '@/lib/types'
 import { PERIODO_LABEL, PERIODO_UNIDADE } from '@/lib/types'
 import {
-  addPeriodo, brl, custoIncorrido, custoPrevisto, diffDias, fimCobranca, fmtData, hoje,
-  parseValor, periodosCobrados, uid, valorPorPeriodo,
+  addPeriodo, brl, custoIncorrido, custoIntervalo, valorDia, custoPrevisto, diffDias, fimCobranca, fmtData, hoje,
+  DIAS_PERIODO, diasCobrados, parseValor, uid, valorPorPeriodo,
 } from '@/lib/calc'
 
 const fmtNum = (n: number) => (n ? n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '')
@@ -62,9 +62,10 @@ export function FormModal({ editing, fornecedores, obras, obraPadrao, onClose, o
 
   const qtd = Math.max(1, parseInt(f.quantidade) || 1)
   const porPeriodo = parseValor(f.valorUnitario) * qtd
-  const nPer = f.dataEntrada && f.dataFim && diffDias(f.dataEntrada, f.dataFim) >= 0
-    ? periodosCobrados(f.dataEntrada, f.dataFim, f.periodo) : 0
-  const [un1, unN] = PERIODO_UNIDADE[f.periodo]
+  const dias = f.dataEntrada && f.dataFim && diffDias(f.dataEntrada, f.dataFim) >= 0
+    ? diasCobrados(f.dataEntrada, f.dataFim) : 0
+  const porDia = porPeriodo / DIAS_PERIODO[f.periodo]
+  const [un1] = PERIODO_UNIDADE[f.periodo]
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault()
@@ -182,11 +183,11 @@ export function FormModal({ editing, fornecedores, obras, obraPadrao, onClose, o
           </div>
         </div>
 
-        {porPeriodo > 0 && nPer > 0 && (
+        {porPeriodo > 0 && dias > 0 && (
           <div className="rounded-xl px-3.5 py-3 text-sm" style={{ background: 'rgb(var(--accent-rgb) / 0.07)', border: '1px solid rgb(var(--accent-rgb) / 0.18)' }}>
-            <div className="flex justify-between"><span className="text-muted">{brl(porPeriodo)} × {nPer} {nPer > 1 ? unN : un1}</span><span>{brl(porPeriodo * nPer)}</span></div>
+            <div className="flex justify-between"><span className="text-muted">{brl(porDia)}/dia × {dias} dia{dias > 1 ? 's' : ''}</span><span>{brl(porDia * dias)}</span></div>
             {parseValor(f.frete) > 0 && <div className="flex justify-between"><span className="text-muted">Frete / taxas</span><span>{brl(parseValor(f.frete))}</span></div>}
-            <div className="flex justify-between font-bold mt-1"><span>Total do período</span><span>{brl(porPeriodo * nPer + parseValor(f.frete))}</span></div>
+            <div className="flex justify-between font-bold mt-1"><span>Total previsto</span><span>{brl(Math.round(porDia * dias * 100) / 100 + parseValor(f.frete))}</span></div>
           </div>
         )}
 
@@ -208,8 +209,7 @@ export function RenovarModal({ l, onClose, onSave }: {
   const [novoFim, setNovoFim] = useState(addPeriodo(l.dataFim, l.periodo))
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
-  const nPer = novoFim && diffDias(l.dataFim, novoFim) > 0 ? periodosCobrados(l.dataFim, novoFim, l.periodo) : 0
-  const [un1, unN] = PERIODO_UNIDADE[l.periodo]
+  const dias = novoFim && diffDias(l.dataFim, novoFim) > 0 ? diffDias(l.dataFim, novoFim) : 0
 
   async function confirmar() {
     if (!novoFim || diffDias(l.dataFim, novoFim) <= 0) return setErro(`A nova data deve ser depois de ${fmtData(l.dataFim)}.`)
@@ -241,7 +241,7 @@ export function RenovarModal({ l, onClose, onSave }: {
       <input type="date" className="input-glass text-center" value={novoFim} min={l.dataFim} onChange={e => { setNovoFim(e.target.value); setErro('') }} />
       <p className="text-xs text-muted mt-2">
         Vencimento atual: {fmtData(l.dataFim)}
-        {nPer > 0 && valorPorPeriodo(l) > 0 && <> · +{nPer} {nPer > 1 ? unN : un1} = <b className="text-fg">{brl(nPer * valorPorPeriodo(l))}</b></>}
+        {dias > 0 && valorPorPeriodo(l) > 0 && <> · +{dias} dias = <b className="text-fg">{brl(custoIntervalo(l, l.dataFim, novoFim))}</b></>}
       </p>
     </Modal>
   )
@@ -305,9 +305,10 @@ export function DevolverModal({ l, onClose, onSave, onConfirmada }: {
 }
 
 // ─── Detalhe ──────────────────────────────────────────────────
-export function DetalheModal({ l, store, onClose, onEditar, onSave, onExcluir, onFotosChange }: {
+export function DetalheModal({ l, store, admin, onClose, onEditar, onSave, onExcluir, onFotosChange }: {
   l: Locacao
   store: Store
+  admin: boolean
   onClose: () => void
   onEditar: () => void
   onSave: (l: Locacao) => Promise<void>
@@ -315,8 +316,8 @@ export function DetalheModal({ l, store, onClose, onEditar, onSave, onExcluir, o
   onFotosChange: () => void
 }) {
   const ref = hoje()
-  const [un1, unN] = PERIODO_UNIDADE[l.periodo]
-  const nPer = periodosCobrados(l.dataEntrada, fimCobranca(l, ref), l.periodo)
+  const [un1] = PERIODO_UNIDADE[l.periodo]
+  const dias = diasCobrados(l.dataEntrada, fimCobranca(l, ref))
   const tel = l.contato.replace(/\D/g, '')
   const whats = tel ? `https://wa.me/${tel.length <= 11 ? '55' + tel : tel}?text=${encodeURIComponent(`Olá! Sobre a locação de ${l.equipamento}${l.obra ? ` na obra ${l.obra}` : ''}${l.contrato ? ` (contrato ${l.contrato})` : ''}: `)}` : ''
 
@@ -340,7 +341,7 @@ export function DetalheModal({ l, store, onClose, onEditar, onSave, onExcluir, o
 
   return (
     <Modal variant="sheet" title={l.equipamento} subtitle={[l.fornecedor, l.obra].filter(Boolean).join(' · ') || undefined} onClose={onClose}
-      footer={
+      footer={admin &&
         <div className="grid grid-cols-[auto_1fr] gap-2">
           <button onClick={excluir} aria-label="Excluir" className="btn-ghost rounded-xl px-4 py-3" style={{ color: 'var(--c-rose)' }}><Trash2 size={18} /></button>
           <button onClick={onEditar} className="btn-accent rounded-xl py-3 text-[15px]">Editar dados</button>
@@ -350,7 +351,7 @@ export function DetalheModal({ l, store, onClose, onEditar, onSave, onExcluir, o
         <div className="grid grid-cols-2 gap-2">
           <Box label={`Valor / ${un1}`} valor={brl(valorPorPeriodo(l))} sub={`${l.quantidade} un × ${brl(l.valorUnitario)}`} />
           <Box label="Gasto até hoje" valor={brl(custoIncorrido(l, ref))} />
-          <Box label={l.status === 'devolvido' ? 'Total final' : 'Total previsto'} valor={brl(custoPrevisto(l, ref))} sub={`${nPer} ${nPer > 1 ? unN : un1}${l.frete ? ` + ${brl(l.frete)} frete` : ''}`} destaque />
+          <Box label={l.status === 'devolvido' ? 'Total final' : 'Total previsto'} valor={brl(custoPrevisto(l, ref))} sub={`${dias} dias × ${brl(valorDia(l))}${l.frete ? ` + ${brl(l.frete)} frete` : ''}`} destaque />
           <Box label="Período" valor={`${fmtData(l.dataEntrada).slice(0, 5)} → ${fmtData(l.status === 'devolvido' ? l.dataDevolucao : l.dataFim).slice(0, 5)}`} sub={`${diffDias(l.dataEntrada, l.status === 'devolvido' && l.dataDevolucao ? l.dataDevolucao : ref)} dias na obra`} />
         </div>
 
@@ -369,8 +370,8 @@ export function DetalheModal({ l, store, onClose, onEditar, onSave, onExcluir, o
           </div>
         )}
 
-        <Fotos store={store} locacaoId={l.id} tipo="recebimento" onChange={onFotosChange} />
-        {(l.status !== 'ativo') && <Fotos store={store} locacaoId={l.id} tipo="entrega" onChange={onFotosChange} />}
+        <Fotos store={store} locacaoId={l.id} tipo="recebimento" onChange={onFotosChange} podeExcluir={admin} />
+        {(l.status !== 'ativo') && <Fotos store={store} locacaoId={l.id} tipo="entrega" onChange={onFotosChange} podeExcluir={admin} />}
 
         <div>
           <p className="label-field">Histórico</p>
@@ -384,7 +385,7 @@ export function DetalheModal({ l, store, onClose, onEditar, onSave, onExcluir, o
           </ol>
         </div>
 
-        {l.status === 'devolvido' && (
+        {admin && l.status === 'devolvido' && (
           <button onClick={reabrir} className="text-sm font-semibold text-muted flex items-center gap-1.5"><Undo2 size={15} /> Desfazer devolução</button>
         )}
         <div className="flex gap-1.5 flex-wrap"><Pill>{PERIODO_LABEL[l.periodo]}</Pill>{l.renovacoes.length > 0 && <Pill cor="var(--c-sky)">{l.renovacoes.length}x renovado</Pill>}</div>

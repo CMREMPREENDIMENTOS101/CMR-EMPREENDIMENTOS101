@@ -47,20 +47,22 @@ export function addPeriodo(s: string, p: Periodo, n = 1): string {
   }
 }
 
-/**
- * Quantos períodos são cobrados entre início e fim. Período iniciado = período cobrado
- * (regra usual das locadoras); mínimo de 1.
- */
-export function periodosCobrados(inicio: string, fim: string, p: Periodo): number {
-  if (diffDias(inicio, fim) <= 0) return 1
-  let n = 0
-  let cursor = inicio
-  // Loop limitado: 10 anos de diárias no pior caso
-  while (diffDias(cursor, fim) > 0 && n < 3700) { cursor = addPeriodo(inicio, p, ++n) }
-  return Math.max(1, n)
-}
+/** Dias de cada período para o pró-rata (mês comercial de 30 dias) */
+export const DIAS_PERIODO: Record<Periodo, number> = { diaria: 1, semanal: 7, quinzenal: 15, mensal: 30 }
 
 export const valorPorPeriodo = (l: Locacao) => (l.valorUnitario || 0) * (l.quantidade || 1)
+
+/** Valor de um dia de locação de todas as unidades: valor do período ÷ dias do período */
+export const valorDia = (l: Locacao) => valorPorPeriodo(l) / DIAS_PERIODO[l.periodo]
+
+/** Dias cobrados entre início e fim (dias corridos, mínimo 1). Sem período mínimo de contrato. */
+export const diasCobrados = (inicio: string, fim: string) => Math.max(1, diffDias(inicio, fim))
+
+const centavos = (n: number) => Math.round(n * 100) / 100
+
+/** Custo proporcional do intervalo, sem frete */
+export const custoIntervalo = (l: Locacao, inicio: string, fim: string) =>
+  centavos(diasCobrados(inicio, fim) * valorDia(l))
 
 const maxData = (...ds: string[]) => ds.reduce((a, b) => (diffDias(a, b) > 0 ? b : a))
 
@@ -73,16 +75,16 @@ export function fimCobranca(l: Locacao, ref = hoje()): string {
   return maxData(l.dataFim, ref, ...(l.devolucaoPrevista ? [l.devolucaoPrevista] : []))
 }
 
-/** Custo total previsto do contrato (período contratado + atraso, se houver) */
+/** Custo total previsto (até o vencimento, ou até hoje se atrasado, ou até a devolução real) */
 export function custoPrevisto(l: Locacao, ref = hoje()): number {
-  return periodosCobrados(l.dataEntrada, fimCobranca(l, ref), l.periodo) * valorPorPeriodo(l) + (l.frete || 0)
+  return custoIntervalo(l, l.dataEntrada, fimCobranca(l, ref)) + (l.frete || 0)
 }
 
 /** Custo já incorrido até a data de referência */
 export function custoIncorrido(l: Locacao, ref = hoje()): number {
   const fim = l.status === 'devolvido' && l.dataDevolucao ? l.dataDevolucao : ref
   if (diffDias(l.dataEntrada, fim) < 0) return 0
-  return periodosCobrados(l.dataEntrada, fim, l.periodo) * valorPorPeriodo(l) + (l.frete || 0)
+  return custoIntervalo(l, l.dataEntrada, fim) + (l.frete || 0)
 }
 
 export type Nivel = 'ok' | 'alerta' | 'vencido' | 'devolvido' | 'agendado'

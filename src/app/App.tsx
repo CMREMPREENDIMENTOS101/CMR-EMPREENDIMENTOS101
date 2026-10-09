@@ -39,6 +39,7 @@ export default function App() {
   const [obra, setObra] = useState('')
   const [busca, setBusca] = useState('')
   const [modal, setModal] = useState<ModalState>(null)
+  const [admin, setAdmin] = useState(false)
 
   useEffect(() => {
     if (!sb) return
@@ -58,7 +59,11 @@ export default function App() {
 
   const recarregarFotos = useCallback(() => { store.contarFotos().then(setFotos).catch(() => {}) }, [store])
 
-  useEffect(() => { if (logado) carregar() }, [logado, carregar])
+  useEffect(() => {
+    if (!logado) return
+    carregar()
+    store.ehAdmin().then(setAdmin).catch(() => setAdmin(false))
+  }, [logado, carregar, store])
 
   // Recalcula "dias restantes" quando o app volta do segundo plano em outro dia
   const [ref, setRef] = useState(hoje())
@@ -81,11 +86,20 @@ export default function App() {
     todos: daObra.length,
   }), [daObra])
 
+  // Vindo do toque na notificação: abre direto no filtro de alertas
   useEffect(() => {
-    if (!prefs.notificar) return
+    if (new URLSearchParams(window.location.search).get('filtro') === 'alertas') {
+      setFiltro('alertas')
+      window.history.replaceState(null, '', '/')
+    }
+  }, [])
+
+  useEffect(() => {
+    // No modo Supabase quem avisa é o push do servidor; a notificação local é só do modo offline
+    if (!prefs.notificar || store.modo !== 'local') return
     const alertas = comSit.filter(x => emAlerta(x.sit))
     notificarAlertas(alertas.length, alertas.map(x => x.l.equipamento))
-  }, [comSit, prefs.notificar])
+  }, [comSit, prefs.notificar, store.modo])
 
   const visiveis = useMemo(() => {
     const q = norm(busca.trim())
@@ -188,7 +202,7 @@ export default function App() {
             {visiveis.map(({ l, sit }) => (
               <EquipCard key={l.id} l={l} sit={sit} fotos={fotos[l.id] ?? { recebimento: 0, entrega: 0 }}
                 onAbrir={() => setModal({ tipo: 'detalhe', id: l.id })}
-                onEditar={() => setModal({ tipo: 'editar', id: l.id })}
+                onEditar={admin ? () => setModal({ tipo: 'editar', id: l.id }) : undefined}
                 onRenovar={() => setModal({ tipo: 'renovar', id: l.id })}
                 onDevolver={() => setModal({ tipo: 'devolver', id: l.id })} />
             ))}
@@ -214,7 +228,7 @@ export default function App() {
         <FormModal fornecedores={fornecedores} obras={obras} obraPadrao={obra} onClose={() => setModal(null)}
           onSave={async (l, novo) => { await salvar(l); if (novo) setTimeout(() => setModal({ tipo: 'detalhe', id: l.id }), 0) }} />
       )}
-      {modal?.tipo === 'editar' && atual && (
+      {modal?.tipo === 'editar' && atual && admin && (
         <FormModal editing={atual} fornecedores={fornecedores} obras={obras} onClose={() => setModal(null)} onSave={salvar} />
       )}
       {modal?.tipo === 'renovar' && atual && <RenovarModal l={atual} onClose={() => setModal(null)} onSave={salvar} />}
@@ -223,7 +237,7 @@ export default function App() {
           onConfirmada={l => setTimeout(() => setModal({ tipo: 'detalhe', id: l.id }), 0)} />
       )}
       {modal?.tipo === 'detalhe' && atual && (
-        <DetalheModal l={atual} store={store} onClose={() => setModal(null)}
+        <DetalheModal l={atual} store={store} admin={admin} onClose={() => setModal(null)}
           onEditar={() => setModal({ tipo: 'editar', id: atual.id })}
           onSave={salvar} onExcluir={() => excluir(atual.id)} onFotosChange={recarregarFotos} />
       )}

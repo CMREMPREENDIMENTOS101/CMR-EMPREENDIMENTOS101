@@ -6,6 +6,7 @@ import type { Prefs } from '@/lib/prefs'
 import type { Store } from '@/lib/store'
 import type { Locacao } from '@/lib/types'
 import { hoje } from '@/lib/calc'
+import { ativarPush, atualizarDiasPush, desativarPush, pushDisponivel } from '@/lib/push'
 
 export default function Ajustes({ prefs, update, store, lista, onImportado, onSair }: {
   prefs: Prefs
@@ -19,7 +20,17 @@ export default function Ajustes({ prefs, update, store, lista, onImportado, onSa
   const fileRef = useRef<HTMLInputElement>(null)
   const suportaNotif = typeof Notification !== 'undefined'
 
+  const push = pushDisponivel()
+
   async function alternarNotif() {
+    setMsg('')
+    if (push) {
+      try {
+        if (prefs.notificar) { await desativarPush(); update({ notificar: false }) }
+        else { await ativarPush(prefs.alertaDias); update({ notificar: true }); setMsg('Pronto: o aviso chega todo dia às 7h45 se houver algo vencendo, mesmo com o app fechado.') }
+      } catch (e) { setMsg((e as Error).message) }
+      return
+    }
     if (prefs.notificar) return update({ notificar: false })
     if (!suportaNotif) return setMsg('Este navegador não suporta notificações. No iPhone, instale o app na Tela de Início primeiro (iOS 16.4+).')
     const p = await Notification.requestPermission()
@@ -55,14 +66,16 @@ export default function Ajustes({ prefs, update, store, lista, onImportado, onSa
         <label className="label-field">Avisar quantos dias antes do vencimento</label>
         <div className="grid grid-cols-5 gap-1.5">
           {[2, 3, 5, 7, 10].map(n => (
-            <button key={n} onClick={() => update({ alertaDias: n })}
+            <button key={n} onClick={() => { update({ alertaDias: n }); if (push && prefs.notificar) atualizarDiasPush(n).catch(() => {}) }}
               className={`rounded-xl py-2.5 text-sm font-semibold ${prefs.alertaDias === n ? 'btn-accent' : 'btn-ghost'}`}>{n}d</button>
           ))}
         </div>
       </section>
 
       <Linha icon={<Bell size={18} />} titulo="Notificação diária de alertas"
-        sub="Ao abrir o app, avisa no aparelho o que vence (1x por dia)." onClick={alternarNotif} ligado={prefs.notificar} />
+ sub={push
+          ? 'Todo dia às 7h45, mesmo com o app fechado. No iPhone, instale na Tela de Início antes.'
+          : 'Ao abrir o app, avisa no aparelho o que vence (1x por dia).'} onClick={alternarNotif} ligado={prefs.notificar} />
       <Linha icon={prefs.tema === 'dark' ? <Moon size={18} /> : <Sun size={18} />} titulo="Tema escuro"
         sub="Mesmo tema do ERP CMR." onClick={() => update({ tema: prefs.tema === 'dark' ? 'light' : 'dark' })} ligado={prefs.tema === 'dark'} />
 

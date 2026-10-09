@@ -2,14 +2,14 @@
 
 import { useMemo } from 'react'
 import { Download } from 'lucide-react'
-import type { Locacao, Periodo } from '@/lib/types'
+import type { Locacao } from '@/lib/types'
 import { PERIODO_LABEL } from '@/lib/types'
 import {
-  brl, brlCurto, custoIncorrido, custoPrevisto, emAlerta, fmtData, hoje, situacao, valorPorPeriodo,
+  brl, brlCurto, custoIncorrido, custoPrevisto, emAlerta, fmtData, hoje, situacao, valorDia, valorPorPeriodo,
 } from '@/lib/calc'
 
-/** Fator para converter o valor de um período em valor por mês (30 dias) */
-const POR_MES: Record<Periodo, number> = { diaria: 30, semanal: 30 / 7, quinzenal: 2, mensal: 1 }
+/** Custo de 30 dias corridos (mês comercial do pró-rata) */
+const porMes = (l: Locacao) => valorDia(l) * 30
 
 interface Linha { chave: string; ativos: number; mensal: number; incorrido: number; previsto: number }
 
@@ -18,7 +18,7 @@ function agrupar(lista: Locacao[], chave: (l: Locacao) => string, ref: string): 
   for (const l of lista) {
     const k = chave(l) || '— sem informação —'
     const g = m.get(k) ?? { chave: k, ativos: 0, mensal: 0, incorrido: 0, previsto: 0 }
-    if (l.status !== 'devolvido') { g.ativos++; g.mensal += valorPorPeriodo(l) * POR_MES[l.periodo] }
+    if (l.status !== 'devolvido') { g.ativos++; g.mensal += porMes(l) }
     g.incorrido += custoIncorrido(l, ref)
     g.previsto += custoPrevisto(l, ref)
     m.set(k, g)
@@ -57,7 +57,7 @@ export default function Resumo({ lista, alertaDias, obra }: { lista: Locacao[]; 
     return {
       ativos: ativos.length,
       alertas: ativos.filter(l => emAlerta(situacao(l, alertaDias, ref))).length,
-      mensal: ativos.reduce((s, l) => s + valorPorPeriodo(l) * POR_MES[l.periodo], 0),
+      mensal: ativos.reduce((s, l) => s + porMes(l), 0),
       emAberto: ativos.reduce((s, l) => s + custoPrevisto(l, ref), 0),
       incorrido: lista.reduce((s, l) => s + custoIncorrido(l, ref), 0),
       porObra: agrupar(lista, l => l.obra, ref),
@@ -82,8 +82,8 @@ export default function Resumo({ lista, alertaDias, obra }: { lista: Locacao[]; 
         <Download size={16} /> Exportar planilha (CSV){obra ? ` — ${obra}` : ''}
       </button>
       <p className="text-[11px] text-muted-2 leading-relaxed">
-        Regra de cálculo: período iniciado = período cobrado (ex.: 32 dias em locação mensal = 2 meses).
-        Atraso após o vencimento entra no previsto. Custo mensal converte diária ×30, semanal ×30/7, quinzenal ×2.
+        Regra de cálculo: proporcional por dia corrido, sem período mínimo — valor do período ÷ 1, 7, 15 ou 30 dias
+        (mês comercial de 30 dias). Atraso após o vencimento entra no previsto; devolução antecipada reduz o total.
       </p>
     </div>
   )
