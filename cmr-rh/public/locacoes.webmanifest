@@ -1,0 +1,17 @@
+{
+  "name": "Locações CMR",
+  "short_name": "Locações",
+  "start_url": "/locacoes.html",
+  "scope": "/locacoes",
+  "display": "standalone",
+  "background_color": "#f2f2f4",
+  "theme_color": "#C8102E",
+  "icons": [
+    { "src": "/locacoes-icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/locacoes-icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "id": "/locacoes.html",
+  "lang": "pt-BR",
+  "orientation": "portrait",
+  "description": "Controle de equipamentos locados em obra da CMR Empreendimentos"
+}

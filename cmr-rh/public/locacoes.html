@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Locações CMR</title>
+<meta name="theme-color" content="#C8102E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Locações CMR">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/locacoes.webmanifest">
+<link rel="icon" href="/cmr-logo.png">
+<link rel="apple-touch-icon" href="/locacoes-icon-180.png">
+<style>
+/* Mesmo tema do Efetivo CMR */
+:root{
+  --red:#C8102E;--red-dark:#9e0c24;--red-soft:#fbe7ea;
+  --bg:#f2f2f4;--card:#ffffff;--text:#151515;--muted:#6b6b72;--line:#e3e3e8;
+  --ok:#0f8a55;--ok-soft:#e3f5ec;--off:#b0452f;--off-soft:#fbeae5;--chip:#f0f0f3;
+  --warn:#a86200;--warn-soft:#fff1d6;--money:#5b3cc4;--money-soft:#efeafd;
+  --shadow:0 1px 2px rgba(0,0,0,.06),0 2px 8px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0f0f10;--card:#1a1a1c;--text:#ececef;--muted:#9a9aa3;--line:#2c2c30;
+    --red-soft:#3a1219;--ok:#35c486;--ok-soft:#10301f;--off:#ff8a70;--off-soft:#3a1d15;--chip:#26262a;
+    --warn:#f2b53c;--warn-soft:#3a2c0f;--money:#b9a6ff;--money-soft:#241d3d;
+    --shadow:none;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.hidden{display:none!important}
+
+/* topo */
+.top{position:sticky;top:0;z-index:20;background:var(--red);color:#fff;
+  padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;display:flex;align-items:center;gap:8px}
+.top h1{font-size:18px;margin:0;letter-spacing:.3px;flex:1;min-width:0}
+.top h1 small{display:block;font-size:11px;font-weight:500;opacity:.85;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top .ic{background:rgba(255,255,255,.16);border:0;color:#fff;border-radius:10px;height:36px;min-width:36px;padding:0 10px;font-size:13px}
+.tabs{display:flex;background:var(--red-dark)}
+.tabs button{flex:1;background:none;border:0;color:rgba(255,255,255,.7);padding:10px 0;font-weight:600;font-size:14px;border-bottom:3px solid transparent;position:relative}
+.tabs button.on{color:#fff;border-bottom-color:#fff}
+.tabs .bolha{display:inline-block;min-width:18px;height:18px;border-radius:9px;background:#fff;color:var(--red);font-size:11px;font-weight:800;line-height:18px;padding:0 5px;margin-left:5px;vertical-align:1px}
+
+main{max-width:560px;margin:0 auto;padding:12px 12px calc(96px + env(safe-area-inset-bottom))}
+.card{background:var(--card);border-radius:14px;box-shadow:var(--shadow);padding:14px;margin-bottom:12px;border:1px solid var(--line)}
+.lbl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.row{display:flex;gap:8px;align-items:center}
+.row>*{min-width:0}
+.field{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:11px 12px;min-height:44px}
+select.field{appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+  background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:30px}
+.dia{font-size:13px;color:var(--muted);margin-top:6px}
+.link{background:none;border:0;color:var(--red);font-weight:600;padding:6px 0}
+.mt{margin-top:10px}
+
+.contagem{display:flex;gap:8px;margin-bottom:10px}
+.contagem button{flex:1;border-radius:12px;padding:10px 4px;text-align:center;background:var(--card);border:1px solid var(--line)}
+.contagem button.on{border-color:var(--red);box-shadow:inset 0 0 0 1px var(--red)}
+.contagem b{display:block;font-size:22px;line-height:1.1}
+.contagem span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:700}
+.contagem .p b{color:var(--ok)} .contagem .w b{color:var(--warn)} .contagem .a b{color:var(--off)}
+
+/* card de equipamento (mesmo desenho do card de pessoa) */
+.eq{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:12px;padding:12px;margin-bottom:8px}
+.eq.alerta{border-left-color:var(--warn)} .eq.vencido{border-left-color:var(--off)} .eq.devolvido{border-left-color:var(--muted);opacity:.9}
+.eq-top{display:flex;gap:10px;align-items:flex-start}
+.eq-info{flex:1;min-width:0}
+.eq-nome{font-weight:700;font-size:16px}
+.eq-nome small{font-weight:600;color:var(--muted);font-size:13px}
+.eq-sub{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.tag{font-size:12px;font-weight:600;border-radius:7px;padding:3px 8px;background:var(--chip);color:var(--muted)}
+.tag.ok{background:var(--ok-soft);color:var(--ok)} .tag.w{background:var(--warn-soft);color:var(--warn)}
+.tag.a{background:var(--off-soft);color:var(--off)} .tag.m{background:var(--money-soft);color:var(--money)}
+.eq-obs{font-size:13px;color:var(--muted);background:var(--bg);border-radius:8px;padding:6px 9px;margin-top:8px}
+.mini{display:flex;gap:5px;margin-top:8px}
+.mini img{width:42px;height:42px;border-radius:7px;object-fit:cover;background:var(--chip)}
+.eq-acoes{display:flex;gap:8px;margin-top:10px}
+.eq-acoes button{flex:1;border:0;border-radius:10px;height:42px;font-weight:700;font-size:14px}
+.b-ren{background:var(--red);color:#fff}
+.b-dev{background:var(--chip);color:var(--text)}
+.pend{font-size:11px;font-weight:700;color:var(--warn)}
+
+textarea.field{min-height:72px;resize:vertical}
+
+.barra{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--card);border-top:1px solid var(--line);
+  padding:10px 12px calc(10px + env(safe-area-inset-bottom))}
+.barra .in{max-width:560px;margin:0 auto;display:flex;gap:8px}
+.btn{border:0;border-radius:12px;min-height:50px;padding:0 16px;font-weight:700;font-size:15px}
+.btn.pri{background:var(--red);color:#fff;flex:1}
+.btn.zap{background:#1faa53;color:#fff;flex:1}
+.btn.sec{background:var(--chip);color:var(--text)}
+.btn.warn{background:var(--warn);color:#fff;flex:1}
+.btn.full{width:100%}
+.btn[disabled]{opacity:.45}
+.status{font-size:12px;color:var(--muted);text-align:center;margin:4px 0 10px}
+.status.err{color:var(--off);font-weight:600}
+.status.ok{color:var(--ok)}
+
+/* folhas (bottom sheets) */
+.veu{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40;display:flex;align-items:flex-end;justify-content:center}
+.folha{background:var(--card);width:100%;max-width:560px;border-radius:18px 18px 0 0;max-height:90vh;display:flex;flex-direction:column;
+  padding:8px 16px calc(16px + env(safe-area-inset-bottom))}
+.folha .puxador{width:40px;height:4px;border-radius:2px;background:var(--line);margin:4px auto 10px}
+.folha h2{font-size:17px;margin:0 0 10px}
+.folha .corpo{overflow:auto;flex:1;min-height:0;-webkit-overflow-scrolling:touch}
+.folha .pe{display:flex;gap:8px;margin-top:12px}
+.previa{white-space:pre-wrap;background:#e7ffdb;color:#111;border-radius:10px;padding:12px;font-size:14px;line-height:1.45}
+@media (prefers-color-scheme:dark){.previa{background:#025c4c;color:#e9edef}}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{border:1px solid var(--line);background:var(--bg);border-radius:20px;padding:8px 12px;font-size:13px;font-weight:600}
+.chips button.on{background:var(--red-soft);border-color:var(--red);color:var(--red)}
+.sep{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 4px}
+.inst{display:flex;align-items:center;gap:10px;background:var(--red-soft);border:1px solid var(--red);border-radius:12px;
+  padding:10px 12px;font-size:13px;font-weight:600;margin-bottom:10px}
+.inst span{flex:1}
+.inst button{border:0;background:var(--red);color:#fff;border-radius:9px;height:38px;padding:0 14px;font-weight:700;flex:none}
+.aviso{background:#fff4d6;color:#6b4a00;border:1px solid #f0dca6;border-radius:12px;padding:10px 12px;font-size:13px;font-weight:600;margin-bottom:10px;text-align:center}
+@media (prefers-color-scheme:dark){.aviso{background:#3a2f0f;color:#f4dfa0;border-color:#5a4a1c}}
+.passos{counter-reset:p;padding:0;margin:6px 0 0;list-style:none}
+.passos li{counter-increment:p;position:relative;padding:8px 0 8px 34px;border-bottom:1px solid var(--line);font-size:14px}
+.passos li:before{content:counter(p);position:absolute;left:0;top:8px;width:24px;height:24px;border-radius:50%;background:var(--red);color:#fff;
+  display:grid;place-items:center;font-size:12px;font-weight:700}
+.vazio{text-align:center;color:var(--muted);padding:30px 10px}
+
+/* formulário */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.g2>div{min-width:0}
+.f{margin-bottom:10px}
+.total{display:flex;justify-content:space-between;align-items:center;background:var(--money-soft);color:var(--money);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.total b{font-size:18px}
+.total small{display:block;font-size:12px;opacity:.85}
+
+/* fotos */
+.fotos{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:6px}
+.fotos .ft{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--chip)}
+.fotos .ft img{width:100%;height:100%;object-fit:cover;display:block}
+.fotos .ft .x{position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:12px;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:14px;line-height:24px;padding:0}
+.fotos .ft .pf{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);color:#fff;font-size:10px;text-align:center;padding:2px}
+.add-foto{aspect-ratio:1;border:2px dashed var(--line);border-radius:10px;display:grid;place-items:center;color:var(--muted);font-size:12px;font-weight:600;text-align:center;position:relative;overflow:hidden}
+.add-foto input{position:absolute;inset:0;opacity:0}
+.add-foto b{display:block;font-size:22px}
+.visor{position:fixed;inset:0;z-index:70;background:#000;display:flex;align-items:center;justify-content:center}
+.visor img{max-width:100%;max-height:100%}
+.visor .cap{position:absolute;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom));color:#fff;font-size:13px;text-align:center;opacity:.85}
+
+/* detalhe / valores */
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:14px;margin:4px 0 10px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;text-align:right;font-weight:600}
+.hist{font-size:13px;color:var(--muted);margin:0;padding-left:16px}
+.hist li{margin:3px 0}
+.tot-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.tot-grid div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.tot-grid div.l{grid-column:1/-1}
+.tot-grid span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:700}
+.tot-grid b{display:block;font-size:20px;margin-top:2px}
+.lin{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:6px;width:100%;text-align:left}
+.lin .grow{flex:1;min-width:0}
+.lin .t{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lin .s{font-size:12px;color:var(--muted)}
+.lin .v{font-weight:700;text-align:right;white-space:nowrap}
+.lin .v small{display:block;font-size:11px;color:var(--muted);font-weight:500}
+.barrinha{height:5px;border-radius:3px;background:var(--chip);margin-top:5px;overflow:hidden}
+.barrinha i{display:block;height:100%;background:var(--red)}
+.data-cx{width:44px;flex:none;text-align:center;border-radius:10px;background:var(--chip);padding:5px 0}
+.data-cx b{display:block;font-size:17px;line-height:1}
+.data-cx span{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase}
+.data-cx.w{background:var(--warn-soft);color:var(--warn)} .data-cx.a{background:var(--off-soft);color:var(--off)}
+
+/* login */
+.login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.login .card{width:100%;max-width:380px;padding:22px}
+.login img{width:110px;display:block;margin:0 auto 10px;background:#fff;border-radius:12px;padding:8px 10px}
+.login h2{text-align:center;margin:0 0 4px}
+.login p{text-align:center;color:var(--muted);margin:0 0 16px;font-size:13px}
+.login .field{margin-bottom:10px}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#222;color:#fff;
+  padding:10px 16px;border-radius:10px;font-size:14px;z-index:80;max-width:90vw;text-align:center}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<section id="tela-login" class="login hidden">
+  <form class="card" id="form-login">
+    <img src="/cmr-logo.png" alt="">
+    <h2>Locações CMR</h2>
+    <p>Entre com o mesmo login do Sistema RH</p>
+    <input id="lg-email" class="field" type="email" placeholder="E-mail" autocomplete="username" required>
+    <input id="lg-senha" class="field" type="password" placeholder="Senha" autocomplete="current-password" required>
+    <div id="lg-erro" class="status err hidden"></div>
+    <button class="btn pri" style="width:100%" id="lg-btn">Entrar</button>
+  </form>
+</section>
+
+<!-- APP -->
+<section id="tela-app" class="hidden">
+  <header>
+    <div class="top">
+      <h1>Locações CMR<small id="top-user"></small></h1>
+      <button class="ic" data-a="recarregar" title="Atualizar">↻</button>
+      <button class="ic" data-a="ajustes" title="Ajustes">⚙</button>
+      <button class="ic" data-a="sair">Sair</button>
+    </div>
+    <nav class="tabs">
+      <button id="tab-eq" class="on" data-aba="eq">Equipamentos</button>
+      <button id="tab-ag" data-aba="ag">Agenda</button>
+      <button id="tab-val" data-aba="val">Valores</button>
+    </nav>
+  </header>
+
+  <!-- EQUIPAMENTOS -->
+  <main id="pg-eq">
+    <div id="aviso-off" class="aviso hidden"></div>
+    <div id="banner-inst" class="inst hidden">
+      <span>📲 Instale na tela inicial para abrir como aplicativo</span>
+      <button data-a="instalar">Instalar</button>
+    </div>
+    <div class="card">
+      <div class="lbl">Obra</div>
+      <select id="f-obra" class="field"></select>
+      <input id="f-busca" class="field mt" type="search" placeholder="Buscar equipamento, fornecedor, código…">
+    </div>
+    <div id="status" class="status"></div>
+    <div class="contagem" id="contagem"></div>
+    <div id="lista"></div>
+  </main>
+
+  <!-- AGENDA -->
+  <main id="pg-ag" class="hidden">
+    <div class="card">
+      <div class="lbl">Obra</div>
+      <select id="a-obra" class="field"></select>
+    </div>
+    <div id="ag-lista"></div>
+  </main>
+
+  <!-- VALORES -->
+  <main id="pg-val" class="hidden">
+    <div class="card">
+      <div class="lbl">Obra</div>
+      <select id="v-obra" class="field"></select>
+    </div>
+    <div id="val-corpo"></div>
+  </main>
+
+  <div class="barra" id="barra">
+    <div class="in" id="barra-in"></div>
+  </div>
+</section>
+
+<div id="veu" class="veu hidden">
+  <div class="folha" id="folha"></div>
+</div>
+
+<script>
+'use strict';
+// ════════════════════════════════════════════════════════════════
+// Locações CMR — controle de equipamentos locados em obra pelo celular.
+// Mesmo login e mesmas obras do Sistema RH (como o Efetivo CMR).
+// Locações e fotos ficam no servidor (/api/locacoes); sem sinal, o app
+// abre com a última cópia e guarda as alterações numa fila.
+// ════════════════════════════════════════════════════════════════
+const TOKEN_KEY='cmr_locacoes_token', USER_KEY='cmr_locacoes_user', BASE_KEY='cmr_locacoes_base';
+const FILA_KEY='cmr_locacoes_fila', CFG_KEY='cmr_locacoes_cfg', OBRA_KEY='cmr_locacoes_obra';
+const TODAS='__todas__';
+const MESES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const MESES_L=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const PER={diaria:{nome:'Diária',dias:1,r:['diária','diárias']},semanal:{nome:'Semanal',dias:7,r:['semana','semanas']},
+  quinzenal:{nome:'Quinzenal',dias:15,r:['quinzena','quinzenas']},mensal:{nome:'Mensal',dias:null,r:['mês','meses']}};
+
+let token=null, usuario=null, offline=false, promptInstalar=null;
+let OBRAS=[], LOC=[];
+let filtro='ativos', aba='eq';
+let cfg={alertaDias:7,notificar:false,ultimaNotif:null};
+try{ cfg=Object.assign(cfg,JSON.parse(localStorage.getItem(CFG_KEY)||'{}')); }catch(_){}
+
+// ── utilidades ──
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+const toISO=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const parseISO=s=>{ const [a,m,d]=s.split('-').map(Number); return new Date(a,m-1,d); };
+const hoje=()=>toISO(new Date());
+const difDias=(a,b)=>Math.round((parseISO(b)-parseISO(a))/86400000);
+const maxISO=(a,b)=>!a?b:!b?a:(a>b?a:b);
+const br=s=>{ if(!s) return '—'; const [a,m,d]=s.split('-'); return d+'/'+m+'/'+a; };
+const curta=s=>{ if(!s) return '—'; const d=parseISO(s); return pad(d.getDate())+' '+MESES[d.getMonth()]+(d.getFullYear()!==new Date().getFullYear()?' '+d.getFullYear():''); };
+const BRL=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+const din=v=>BRL.format(Number(v)||0);
+const r2=v=>Math.round(v*100)/100;
+const plural=(n,[um,v])=>n+' '+(n===1?um:v);
+function lerDin(s){ s=String(s||'').replace(/[^\d,.-]/g,''); if(!s) return 0; if(s.includes(',')) s=s.replace(/\./g,'').replace(',','.'); const v=parseFloat(s); return Number.isFinite(v)?r2(v):0; }
+const dinCampo=v=>(v===''||v==null||Number(v)===0)?'':Number(v).toFixed(2).replace('.',',');
+const uid=()=>(crypto.randomUUID?crypto.randomUUID():'l'+Date.now().toString(36)+Math.random().toString(36).slice(2,10));
+function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2800); }
+function salvarCfg(){ try{ localStorage.setItem(CFG_KEY,JSON.stringify(cfg)); }catch(_){} }
+
+// ── períodos e cobrança ──
+// Mensal soma mês civil (31/jan + 1 = 28/fev).
+function addPer(iso,p,n){
+  n=n==null?1:n; const d=parseISO(iso);
+  if(p==='mensal'){ const dia=d.getDate(); const a=new Date(d.getFullYear(),d.getMonth()+n,1);
+    a.setDate(Math.min(dia,new Date(a.getFullYear(),a.getMonth()+1,0).getDate())); return toISO(a); }
+  d.setDate(d.getDate()+PER[p].dias*n); return toISO(d);
+}
+function contarCheios(ent,ref,p){
+  if(!ent||!ref||ref<=ent) return 1;
+  if(p!=='mensal') return Math.max(1,Math.ceil(difDias(ent,ref)/PER[p].dias));
+  let n=0; while(addPer(ent,p,n)<ref) n++; return Math.max(1,n);
+}
+// Proporcional (padrão): períodos cheios + dias avulsos × (valor ÷ dias do período; mensal ÷ 30).
+//   Devolvido: até a data real da devolução. Ativo: até max(hoje, fim). Mínimo 1 dia.
+// Cheio: período iniciado = inteiro; devolução antecipada paga até o fim do contrato.
+function periodos(l){
+  if(l.cobranca==='cheio'){
+    const ref=l.status==='devolvido'?maxISO(l.devolucao,l.fim):maxISO(hoje(),l.fim);
+    const n=contarCheios(l.entrada,ref,l.periodo); return {fator:n,texto:plural(n,PER[l.periodo].r)};
+  }
+  const ref=l.status==='devolvido'?l.devolucao:maxISO(hoje(),l.fim);
+  let n=0; while(addPer(l.entrada,l.periodo,n+1)<=ref) n++;
+  let dias=difDias(addPer(l.entrada,l.periodo,n),ref); if(n===0&&dias<=0) dias=1;
+  const base=PER[l.periodo].dias||30;
+  return {fator:n+dias/base,texto:[n&&plural(n,PER[l.periodo].r),dias&&plural(dias,['dia','dias'])].filter(Boolean).join(' + ')};
+}
+function custo(l){
+  const p=periodos(l), manual=l.valorManual!==''&&l.valorManual!=null;
+  const aluguel=manual?Number(l.valorManual):r2(p.fator*(Number(l.valor)||0)*(Number(l.qtd)||1));
+  const extras=Number(l.extras)||0;
+  return {periodos:p.texto,aluguel,extras,total:r2(aluguel+extras),manual};
+}
+function situacao(l){
+  if(l.status==='devolvido') return {k:'devolvido',dias:null};
+  const d=difDias(hoje(),l.fim);
+  if(d<0) return {k:'vencido',dias:d};
+  if(d<=cfg.alertaDias) return {k:'alerta',dias:d};
+  return {k:'ok',dias:d};
+}
+const emAlerta=l=>{ const k=situacao(l).k; return k==='alerta'||k==='vencido'; };
+const ativos=()=>LOC.filter(l=>l.status!=='devolvido');
+const porFim=(a,b)=>a.fim<b.fim?-1:a.fim>b.fim?1:a.nome.localeCompare(b.nome,'pt');
+
+// ── API ──
+class ErroRede extends Error{}
+async function api(url,payload){
+  let r;
+  try{ r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); }
+  catch(e){ throw new ErroRede('Sem conexão'); }
+  let d={}; try{ d=await r.json(); }catch(e){}
+  if(r.status===401&&url!=='/api/auth'){ sair(true); throw new Error('Sessão expirada — entre de novo'); }
+  if(!r.ok) throw new Error(d.error||('Erro '+r.status));
+  return d;
+}
+const loc=p=>api('/api/locacoes',Object.assign({token},p));
+const fotoURL=path=>'/api/locacoes?foto='+encodeURIComponent(path)+'&t='+encodeURIComponent(token);
+
+// ── login (mesmo do Sistema RH) ──
+$('form-login').addEventListener('submit',async ev=>{
+  ev.preventDefault();
+  const b=$('lg-btn'), e=$('lg-erro');
+  b.disabled=true; b.textContent='Entrando…'; e.classList.add('hidden');
+  try{
+    const d=await api('/api/auth',{action:'login',email:$('lg-email').value.trim(),password:$('lg-senha').value});
+    token=d.access_token; usuario=d.user;
+    try{ localStorage.setItem(TOKEN_KEY,token); localStorage.setItem(USER_KEY,JSON.stringify(usuario)); }catch(_){}
+    await iniciar();
+  }catch(err){ e.textContent=err instanceof ErroRede?'Sem conexão — precisa de internet para entrar.':err.message; e.classList.remove('hidden'); }
+  finally{ b.disabled=false; b.textContent='Entrar'; }
+});
+function sair(expirou){
+  try{ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); }catch(_){}
+  token=null; usuario=null; fecharFolha();
+  $('tela-app').classList.add('hidden'); $('tela-login').classList.remove('hidden');
+  if(expirou){ $('lg-erro').textContent='Sessão expirada — entre de novo.'; $('lg-erro').classList.remove('hidden'); }
+}
+
+// ── carga / offline ──
+function guardarBase(){ try{ localStorage.setItem(BASE_KEY,JSON.stringify({OBRAS,LOC,em:new Date().toISOString(),por:usuario&&usuario.email})); }catch(_){} }
+function lerBase(){ try{ return JSON.parse(localStorage.getItem(BASE_KEY)||'null'); }catch(_){ return null; } }
+async function carregarTudo(){
+  try{
+    const [o,l]=await Promise.all([ api('/api/dados',{token,action:'carregar-obras'}), loc({action:'carregar'}) ]);
+    OBRAS=(o.obras||[]).slice(); LOC=(l.locacoes||[]).slice(); offline=false;
+    aplicarFilaLocal(); guardarBase();
+  }catch(err){
+    if(!(err instanceof ErroRede)) throw err;
+    const b=lerBase(); if(!b) throw new Error('Sem conexão — na primeira vez precisa de internet');
+    OBRAS=b.OBRAS||[]; LOC=b.LOC||[]; offline=true; aplicarFilaLocal();
+  }
+  pintarConexao();
+}
+function pintarConexao(){
+  const f=fila(), partes=[];
+  if(offline||!navigator.onLine) partes.push('📴 Sem conexão — dá para cadastrar e fotografar normalmente');
+  if(f.length) partes.push(f.length+' alteração(ões) esperando para enviar');
+  $('aviso-off').textContent=partes.join(' · ');
+  $('aviso-off').classList.toggle('hidden',!partes.length);
+}
+async function iniciar(){
+  $('tela-login').classList.add('hidden'); $('tela-app').classList.remove('hidden');
+  $('top-user').textContent=usuario?(usuario.name||usuario.email):'';
+  $('status').textContent='Carregando…'; $('status').className='status';
+  try{ await carregarTudo(); }
+  catch(err){ $('status').textContent='Não consegui carregar: '+err.message; $('status').className='status err'; return; }
+  $('status').textContent='';
+  montarObras(); render(); enviarFila(); notificar();
+}
+async function recarregar(){
+  try{ await enviarFila(); await carregarTudo(); montarObras(); render(); toast(offline?'Sem conexão — mostrando a última cópia':'Atualizado'); }
+  catch(err){ toast(err.message); }
+}
+
+// ── fila de envio (obra sem sinal) ──
+// Alterações: localStorage. Fotos (pesadas): IndexedDB.
+function fila(){ try{ return JSON.parse(localStorage.getItem(FILA_KEY)||'[]'); }catch(_){ return []; } }
+function gravarFila(f){ try{ localStorage.setItem(FILA_KEY,JSON.stringify(f)); }catch(_){} }
+function enfileirar(op){
+  // Para a mesma locação vale só a última alteração; exclusão descarta o resto.
+  let f=fila().filter(x=>x.id!==op.id||(x.tipo==='foto'));
+  if(op.tipo==='excluir') f=f.filter(x=>x.id!==op.id);
+  f.push(op); gravarFila(f); pintarConexao();
+}
+function aplicarFilaLocal(){
+  for(const op of fila()){
+    if(op.tipo==='salvar'){ const i=LOC.findIndex(x=>x.id===op.id); const v=Object.assign({},i>=0?LOC[i]:{},op.locacao,{pendente:true,fotos:(i>=0?LOC[i].fotos:op.locacao.fotos)||[]}); if(i>=0) LOC[i]=v; else LOC.push(v); }
+    if(op.tipo==='excluir') LOC=LOC.filter(x=>x.id!==op.id);
+  }
+}
+let enviando=false;
+async function enviarFila(){
+  if(enviando) return; enviando=true;
+  try{
+    const f=fila(); let ok=0; const restam=[];
+    for(const op of f){
+      try{
+        if(op.tipo==='salvar'){ const r=await loc({action:'salvar',locacao:op.locacao}); mesclar(r.locacao); }
+        if(op.tipo==='excluir'){ await loc({action:'excluir',id:op.id}); }
+        ok++;
+      }catch(err){ if(err instanceof ErroRede) restam.push(op); else { ok++; toast('Não enviado ('+(op.locacao?op.locacao.nome:'item')+'): '+err.message); } }
+    }
+    gravarFila(restam.concat(fila().filter(x=>!f.includes(x)&&!f.some(y=>JSON.stringify(y)===JSON.stringify(x)))));
+    const nf=await enviarFotosPendentes();
+    if(ok||nf){ offline=false; guardarBase(); render(); if(ok+nf) toast((ok+nf)+' alteração(ões) enviada(s)'); }
+  }finally{ enviando=false; pintarConexao(); }
+}
+window.addEventListener('online',()=>{ pintarConexao(); enviarFila(); });
+window.addEventListener('offline',pintarConexao);
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&token){ render(); enviarFila(); } });
+
+// IndexedDB mínimo para fotos pendentes
+function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open('cmr_locacoes',1);
+  r.onupgradeneeded=()=>r.result.createObjectStore('fotos',{keyPath:'fotoId'}); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+async function idbOp(modo,fn){ const db=await idb(); return new Promise((res,rej)=>{ const t=db.transaction('fotos',modo); const q=fn(t.objectStore('fotos')); t.oncomplete=()=>res(q&&q.result); t.onerror=()=>rej(t.error); }); }
+const fotosPendentes=()=>idbOp('readonly',s=>s.getAll()).catch(()=>[]);
+async function enviarFotosPendentes(){
+  const l=await fotosPendentes(); let n=0;
+  for(const p of l){
+    if(fila().some(x=>x.tipo==='salvar'&&x.id===p.id)) continue; // a locação ainda não subiu
+    try{
+      const r=await loc({action:'foto-enviar',id:p.id,tipo:p.tipo,imagem:p.imagem,fotoId:p.fotoId});
+      mesclar(r.locacao); await idbOp('readwrite',s=>s.delete(p.fotoId)); n++;
+    }catch(err){ if(!(err instanceof ErroRede)){ await idbOp('readwrite',s=>s.delete(p.fotoId)); toast('Foto descartada: '+err.message); } }
+  }
+  return n;
+}
+function mesclar(l){ const i=LOC.findIndex(x=>x.id===l.id); if(i>=0) LOC[i]=l; else LOC.push(l); guardarBase(); }
+
+// Grava no servidor; sem sinal, guarda na fila e segue.
+async function salvarLoc(l,msgOk){
+  const local=Object.assign({},l,{pendente:true});
+  const i=LOC.findIndex(x=>x.id===l.id), antes=i>=0?LOC[i]:null;
+  if(i>=0) LOC[i]=Object.assign({},LOC[i],local); else LOC.push(local);
+  try{
+    const r=await loc({action:'salvar',locacao:l}); mesclar(r.locacao); offline=false;
+    if(msgOk) toast(msgOk);
+  }catch(err){
+    if(err instanceof ErroRede){ offline=true; enfileirar({tipo:'salvar',id:l.id,locacao:l}); guardarBase(); toast('📴 Guardado no celular — envia sozinho quando tiver sinal'); }
+    else { if(antes) LOC[i]=antes; else LOC=LOC.filter(x=>x.id!==l.id); render(); throw err; }
+  }
+  render(); pintarConexao();
+}
+
+// ── obras ──
+function montarObras(){
+  const ativas=OBRAS.filter(o=>!/conclu|encerr|paralis/i.test(o.status||'')&&!/sem obra/i.test(o.nome));
+  const comLoc=new Set(LOC.map(l=>String(l.obraId)));
+  // obra encerrada que ainda tem locação continua aparecendo
+  const lista=ativas.concat(OBRAS.filter(o=>!ativas.includes(o)&&comLoc.has(String(o.id))));
+  const cont=o=>ativos().filter(l=>String(l.obraId)===String(o.id)).length;
+  const opts=lista.map(o=>'<option value="'+esc(o.id)+'">'+esc(o.nome)+(cont(o)?' ('+cont(o)+')':'')+'</option>').join('');
+  let salva=TODAS; try{ salva=localStorage.getItem(OBRA_KEY)||TODAS; }catch(_){}
+  ['f-obra','a-obra','v-obra'].forEach(id=>{
+    const s=$(id), antes=s.value||salva;
+    s.innerHTML='<option value="'+TODAS+'">Todas as obras</option>'+opts;
+    s.value=(antes===TODAS||lista.some(o=>String(o.id)===antes))?antes:TODAS;
+  });
+}
+function nomeObra(l){ const o=OBRAS.find(x=>String(x.id)===String(l.obraId)); return o?o.nome:(l.obraNome||'Sem obra'); }
+function trocarObra(id){
+  try{ localStorage.setItem(OBRA_KEY,id); }catch(_){}
+  ['f-obra','a-obra','v-obra'].forEach(x=>$(x).value=id); render();
+}
+['f-obra','a-obra','v-obra'].forEach(id=>$(id).addEventListener('change',e=>trocarObra(e.target.value)));
+$('f-busca').addEventListener('input',()=>renderLista());
+const daObra=l=>{ const v=$('f-obra').value; return !v||v===TODAS||String(l.obraId)===v; };
+
+// ── render ──
+function render(){
+  if(!token) return;
+  const nA=ativos().filter(emAlerta).length;
+  $('tab-eq').innerHTML='Equipamentos'+(nA?'<span class="bolha">'+nA+'</span>':'');
+  if(navigator.setAppBadge) (nA?navigator.setAppBadge(nA):navigator.clearAppBadge()).catch(()=>{});
+  if(aba==='eq') renderLista(); else if(aba==='ag') renderAgenda(); else renderValores();
+  renderBarra();
+}
+function renderBarra(){
+  const urg=ativos().filter(daObra).filter(emAlerta);
+  $('barra-in').innerHTML=aba==='eq'
+    ? '<button class="btn pri" data-a="novo">＋ Nova locação</button>'+(urg.length?'<button class="btn zap" data-a="msg-alertas" style="flex:0 0 auto">Avisar ('+urg.length+')</button>':'')
+    : aba==='ag' ? '<button class="btn sec" style="flex:1" data-a="ics">📅 Enviar ao Calendário</button>'
+    : '<button class="btn sec" data-a="csv">⬇ Planilha</button><button class="btn zap" data-a="msg-valores">WhatsApp</button>';
+}
+function renderLista(){
+  const base=LOC.filter(daObra);
+  const c={ativos:base.filter(l=>l.status!=='devolvido').length, alertas:base.filter(l=>l.status!=='devolvido'&&emAlerta(l)).length,
+    devolvidos:base.filter(l=>l.status==='devolvido').length};
+  $('contagem').innerHTML=
+    '<button class="p'+(filtro==='ativos'?' on':'')+'" data-f="ativos"><b>'+c.ativos+'</b><span>Ativos</span></button>'
+   +'<button class="'+(c.alertas?'a':'w')+(filtro==='alertas'?' on':'')+'" data-f="alertas"><b>'+c.alertas+'</b><span>Alertas</span></button>'
+   +'<button class="'+(filtro==='devolvidos'?'on':'')+'" data-f="devolvidos"><b>'+c.devolvidos+'</b><span>Devolvidos</span></button>'
+   +'<button class="'+(filtro==='todos'?'on':'')+'" data-f="todos"><b>'+base.length+'</b><span>Todos</span></button>';
+  let l={ativos:base.filter(x=>x.status!=='devolvido'),alertas:base.filter(x=>x.status!=='devolvido'&&emAlerta(x)),
+    devolvidos:base.filter(x=>x.status==='devolvido'),todos:base}[filtro];
+  const q=$('f-busca').value.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  if(q) l=l.filter(x=>[x.nome,x.fornecedor,x.codigo,x.obs,nomeObra(x)].join(' ').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').includes(q));
+  l=filtro==='devolvidos'?l.slice().sort((a,b)=>(b.devolucao||'').localeCompare(a.devolucao||'')):l.slice().sort((a,b)=>(a.status==='devolvido')-(b.status==='devolvido')||porFim(a,b));
+  const soma=l.reduce((s,x)=>s+custo(x).total,0);
+  $('lista').innerHTML=l.length
+    ? '<div class="status">'+l.length+' item(ns) · somatório <b>'+din(soma)+'</b></div>'+l.map(card).join('')
+    : '<div class="vazio">'+(LOC.length?'Nada neste filtro.':'Nenhum equipamento locado ainda.<br>Toque em "＋ Nova locação".')+'</div>';
+}
+function card(l){
+  const s=situacao(l), c=custo(l), nRen=(l.renovacoes||[]).length;
+  const fim=s.k==='devolvido'?'<span class="tag">Até '+curta(l.fim)+'</span><span class="tag">Devolvido '+curta(l.devolucao)+'</span>'
+    :'<span class="tag '+(s.k==='ok'?'':s.k==='alerta'?'w':'a')+'">Até '+curta(l.fim)+'</span>';
+  const rest=s.k==='vencido'?'<span class="tag a">⚠ '+Math.abs(s.dias)+'d vencido</span>'
+    :s.k==='alerta'?'<span class="tag '+(s.dias<=2?'a':'w')+'">⚠ '+(s.dias===0?'vence hoje':s.dias+'d restantes')+'</span>'
+    :s.k==='ok'?'<span class="tag ok">'+s.dias+'d restantes</span>':'';
+  const fotos=(l.fotos||[]).slice(-4);
+  const obs=[l.codigo&&'Código '+l.codigo,l.obs].filter(Boolean).join(' · ');
+  return '<div class="eq '+s.k+'" data-ver="'+esc(l.id)+'">'
+    +'<div class="eq-top"><div class="eq-info">'
+      +'<div class="eq-nome">'+esc(l.nome)+(Number(l.qtd)>1?' <small>×'+l.qtd+'</small>':'')+'</div>'
+      +'<div class="eq-sub">🏢 '+esc(l.fornecedor||'Sem fornecedor')+' · '+PER[l.periodo].nome+' · 🏗️ '+esc(nomeObra(l))+'</div>'
+    +'</div>'+(l.pendente?'<span class="pend">📴 a enviar</span>':'')+'</div>'
+    +'<div class="tags"><span class="tag">Entrada '+curta(l.entrada)+'</span>'+fim+'</div>'
+    +'<div class="tags">'+rest+(nRen?'<span class="tag">🔄 '+nRen+'x renovado</span>':'')
+      +(l.retirada&&s.k!=='devolvido'?'<span class="tag w">📅 Retirada '+curta(l.retirada)+'</span>':'')
+      +'<span class="tag m">'+din(c.total)+'</span></div>'
+    +(obs?'<div class="eq-obs">'+esc(obs)+'</div>':'')
+    +(fotos.length?'<div class="mini">'+fotos.map(f=>'<img loading="lazy" src="'+esc(fotoURL(f.path))+'" alt="">').join('')+'</div>':'')
+    +(s.k!=='devolvido'?'<div class="eq-acoes"><button class="b-ren" data-ren="'+esc(l.id)+'">🔄 Renovar</button><button class="b-dev" data-dev="'+esc(l.id)+'">📦 Devolver</button></div>':'')
+    +'</div>';
+}
+
+// ── agenda ──
+function renderAgenda(){
+  const v=$('a-obra').value, ev=[];
+  ativos().filter(l=>!v||v===TODAS||String(l.obraId)===v).forEach(l=>{
+    ev.push({l,d:l.fim,t:'Vencimento'}); if(l.retirada) ev.push({l,d:l.retirada,t:'Retirada agendada'});
+  });
+  ev.sort((a,b)=>a.d.localeCompare(b.d));
+  if(!ev.length){ $('ag-lista').innerHTML='<div class="vazio">Nenhum vencimento pendente.</div>'; return; }
+  let html='', grupo='';
+  for(const e of ev){
+    const dd=difDias(hoje(),e.d), d=parseISO(e.d);
+    const g=dd<0?'Vencidos':MESES_L[d.getMonth()]+' '+d.getFullYear();
+    if(g!==grupo){ html+='<div class="sep">'+g+'</div>'; grupo=g; }
+    const cls=dd<0?'a':dd<=cfg.alertaDias?'w':'';
+    const q=dd<0?Math.abs(dd)+'d atrás':dd===0?'hoje':dd===1?'amanhã':'em '+dd+'d';
+    html+='<button class="lin" data-ver="'+esc(e.l.id)+'"><div class="data-cx '+cls+'"><b>'+pad(d.getDate())+'</b><span>'+MESES[d.getMonth()]+'</span></div>'
+      +'<div class="grow"><div class="t">'+esc(e.l.nome)+'</div><div class="s">'+e.t+' · '+esc(e.l.fornecedor||'')+' · '+esc(nomeObra(e.l))+'</div></div>'
+      +'<div class="v">'+q+'</div></button>';
+  }
+  $('ag-lista').innerHTML=html;
+}
+
+// ── valores ──
+function listaValores(){ const v=$('v-obra').value; return LOC.filter(l=>!v||v===TODAS||String(l.obraId)===v); }
+function renderValores(){
+  const l=listaValores(), at=l.filter(x=>x.status!=='devolvido'), dv=l.filter(x=>x.status==='devolvido');
+  const tot=a=>a.reduce((s,x)=>s+custo(x).total,0), geral=tot(l);
+  const mensal=at.reduce((s,x)=>s+(Number(x.valor)||0)*(Number(x.qtd)||1)*(30/(PER[x.periodo].dias||30)),0);
+  const grupo=(chave)=>{ const m=new Map(); l.forEach(x=>{ const k=chave(x)||'—'; const g=m.get(k)||{t:0,n:0,a:0}; g.t+=custo(x).total; g.n++; if(x.status!=='devolvido') g.a++; m.set(k,g); });
+    return [...m].sort((a,b)=>b[1].t-a[1].t); };
+  const bloco=(tit,gs)=>{ if(!gs.length) return ''; const mx=Math.max(1,...gs.map(([,g])=>g.t));
+    return '<div class="sep">'+tit+'</div>'+gs.map(([k,g])=>'<div class="lin"><div class="grow"><div class="t">'+esc(k)+'</div><div class="s">'+g.n+' locação(ões) · '+g.a+' ativa(s)</div>'
+      +'<div class="barrinha"><i style="width:'+(g.t/mx*100)+'%"></i></div></div><div class="v">'+din(g.t)+'<small>'+(geral?Math.round(g.t/geral*100):0)+'%</small></div></div>').join(''); };
+  $('val-corpo').innerHTML=
+    '<div class="tot-grid"><div class="l"><span>Total geral</span><b>'+din(geral)+'</b></div>'
+    +'<div><span>Ativos ('+at.length+')</span><b>'+din(tot(at))+'</b></div>'
+    +'<div><span>Devolvidos ('+dv.length+')</span><b>'+din(tot(dv))+'</b></div>'
+    +'<div class="l"><span>Custo mensal atual (ativos)</span><b>'+din(mensal)+'</b></div></div>'
+    +bloco('Por fornecedor',grupo(x=>x.fornecedor))
+    +($('v-obra').value===TODAS?bloco('Por obra',grupo(nomeObra)):'')
+    +bloco('Por mês de entrada',grupo(x=>{ const [a,m]=x.entrada.split('-'); return MESES[Number(m)-1]+'/'+a; }))
+    +'<p class="dia">Cobrança proporcional: períodos cheios × valor + dias avulsos × (valor ÷ dias do período; mensal ÷ 30), × quantidade, + outros custos. '
+    +'Devolvidos até a data real; ativos projetados até o fim do contrato (ou hoje, se vencidos). Item marcado “período cheio” cobra todo período iniciado.</p>';
+}
+
+// ── folhas ──
+function abrirFolha(html){ $('folha').innerHTML='<div class="puxador"></div>'+html; $('veu').classList.remove('hidden'); document.body.style.overflow='hidden'; }
+function fecharFolha(){ $('veu').classList.add('hidden'); $('folha').innerHTML=''; document.body.style.overflow=''; }
+$('veu').addEventListener('click',e=>{ if(e.target===$('veu')) fecharFolha(); });
+
+// ── formulário ──
+function abrirForm(id){
+  const e=id?LOC.find(x=>x.id===id):null;
+  const obraPadrao=$('f-obra').value!==TODAS?$('f-obra').value:'';
+  const ent=hoje();
+  const d=e||{id:uid(),nome:'',fornecedor:'',obraId:obraPadrao,periodo:'mensal',cobranca:'proporcional',qtd:1,entrada:ent,fim:addPer(ent,'mensal'),valor:'',extras:'',valorManual:'',codigo:'',obs:'',status:'ativo',renovacoes:[],fotos:[]};
+  const forn=[...new Set(LOC.map(x=>x.fornecedor).filter(Boolean))].sort();
+  const nomes=[...new Set(LOC.map(x=>x.nome))].sort();
+  const obrasOpt=OBRAS.filter(o=>!/conclu|encerr|paralis/i.test(o.status||'')||String(o.id)===String(d.obraId))
+    .map(o=>'<option value="'+esc(o.id)+'"'+(String(o.id)===String(d.obraId)?' selected':'')+'>'+esc(o.nome)+'</option>').join('');
+  abrirFolha('<h2>'+(e?'Editar locação':'Nova locação')+'</h2><div class="corpo"><form id="fm" autocomplete="off">'
+    +'<div class="f"><div class="lbl">Equipamento *</div><input name="nome" class="field" required list="dl-n" value="'+esc(d.nome)+'" placeholder="Ex.: Martelete 10kg"></div>'
+    +'<div class="f"><div class="lbl">Obra *</div><select name="obraId" class="field" required><option value="">Escolha a obra</option>'+obrasOpt+'</select></div>'
+    +'<div class="f"><div class="lbl">Fornecedor</div><input name="fornecedor" class="field" list="dl-f" value="'+esc(d.fornecedor)+'" placeholder="Locadora"></div>'
+    +'<div class="g2"><div class="f"><div class="lbl">Período</div><select name="periodo" class="field">'+Object.entries(PER).map(([k,p])=>'<option value="'+k+'"'+(k===d.periodo?' selected':'')+'>'+p.nome+'</option>').join('')+'</select></div>'
+    +'<div class="f"><div class="lbl">Quantidade</div><input name="qtd" class="field" type="number" inputmode="numeric" min="1" value="'+esc(d.qtd||1)+'"></div></div>'
+    +'<div class="g2"><div class="f"><div class="lbl">Entrada *</div><input name="entrada" class="field" type="date" required value="'+d.entrada+'"></div>'
+    +'<div class="f"><div class="lbl">Fim *</div><input name="fim" class="field" type="date" required value="'+d.fim+'"></div></div>'
+    +'<div class="g2"><div class="f"><div class="lbl">Valor por período</div><input name="valor" class="field" inputmode="decimal" placeholder="R$ 0,00" value="'+dinCampo(d.valor)+'"></div>'
+    +'<div class="f"><div class="lbl">Outros custos</div><input name="extras" class="field" inputmode="decimal" placeholder="Frete, avaria" value="'+dinCampo(d.extras)+'"></div></div>'
+    +'<div class="f"><div class="lbl">Cobrança</div><select name="cobranca" class="field"><option value="proporcional"'+(d.cobranca!=='cheio'?' selected':'')+'>Proporcional aos dias</option><option value="cheio"'+(d.cobranca==='cheio'?' selected':'')+'>Período cheio (iniciado = inteiro)</option></select></div>'
+    +'<div class="total" id="fm-total"></div>'
+    +'<div class="f"><div class="lbl">Valor total manual (opcional)</div><input name="valorManual" class="field" inputmode="decimal" placeholder="Substitui o cálculo do aluguel" value="'+dinCampo(d.valorManual)+'"></div>'
+    +'<div class="f"><div class="lbl">Código / contrato</div><input name="codigo" class="field" value="'+esc(d.codigo)+'" placeholder="Ex.: FS0038"></div>'
+    +'<div class="f"><div class="lbl">Observações</div><textarea name="obs" class="field" placeholder="Acessórios, estado, nº de série…">'+esc(d.obs)+'</textarea></div>'
+    +'<div class="lbl">📷 Fotos do recebimento</div><div class="fotos" id="fm-fotos"></div>'
+    +(e?'<button type="button" class="link" data-a="excluir" data-id="'+esc(e.id)+'" style="color:var(--off)">Excluir esta locação</button>':'')
+    +'</form></div>'
+    +'<div class="pe"><button class="btn sec" data-a="fechar">Cancelar</button><button class="btn pri" id="fm-ok">'+(e?'Salvar':'Cadastrar')+'</button></div>'
+    +'<datalist id="dl-n">'+nomes.map(n=>'<option value="'+esc(n)+'">').join('')+'</datalist>'
+    +'<datalist id="dl-f">'+forn.map(n=>'<option value="'+esc(n)+'">').join('')+'</datalist>');
+  const f=$('fm'); let fimManual=!!e;
+  const pend=[]; // fotos do cadastro novo, enviadas depois de salvar
+  const ler=()=>({nome:f.nome.value.trim(),obraId:f.obraId.value,obraNome:(OBRAS.find(o=>String(o.id)===f.obraId.value)||{}).nome||'',
+    fornecedor:f.fornecedor.value.trim(),periodo:f.periodo.value,qtd:Math.max(1,parseInt(f.qtd.value,10)||1),entrada:f.entrada.value,fim:f.fim.value,
+    valor:lerDin(f.valor.value),extras:lerDin(f.extras.value),cobranca:f.cobranca.value,valorManual:f.valorManual.value.trim()?lerDin(f.valorManual.value):'',
+    codigo:f.codigo.value.trim(),obs:f.obs.value.trim()});
+  const atual=()=>{ const t=ler(); if(!t.entrada||!t.fim) return; const c=custo(Object.assign({},t,{status:'ativo'}));
+    $('fm-total').innerHTML='<div><small>'+(c.manual?'Valor manual':esc(c.periodos)+' × '+din(t.valor)+(t.qtd>1?' × '+t.qtd:''))+(t.extras?' + '+din(t.extras):'')+'</small>Total previsto</div><b>'+din(c.total)+'</b>'; };
+  f.fim.addEventListener('input',()=>{ fimManual=true; });
+  f.entrada.addEventListener('input',()=>{ if(!fimManual&&f.entrada.value) f.fim.value=addPer(f.entrada.value,f.periodo.value); });
+  f.periodo.addEventListener('change',()=>{ if(f.entrada.value) f.fim.value=addPer(f.entrada.value,f.periodo.value); fimManual=false; atual(); });
+  f.addEventListener('input',atual); atual();
+  gradeFotos($('fm-fotos'),{id:d.id,tipo:'recebimento',pend:e?null:pend,nome:()=>f.nome.value||'Equipamento'});
+  $('fm-ok').addEventListener('click',async()=>{
+    const t=ler();
+    if(!t.nome) return toast('Informe o equipamento');
+    if(!t.obraId) return toast('Escolha a obra');
+    if(!t.entrada||!t.fim) return toast('Informe entrada e fim');
+    if(t.fim<t.entrada) return toast('O fim não pode ser antes da entrada');
+    const reg=Object.assign({},e||{id:d.id,status:'ativo',devolucao:null,retirada:null,renovacoes:[]},t);
+    delete reg.pendente; delete reg.fotos;
+    $('fm-ok').disabled=true;
+    try{
+      await salvarLoc(reg,e?'Alterações salvas':'Locação cadastrada');
+      for(const p of pend) await enviarFoto(reg.id,'recebimento',p.imagem,p.fotoId);
+      fecharFolha(); render();
+    }catch(err){ toast(err.message); $('fm-ok').disabled=false; }
+  });
+}
+
+// ── fotos ──
+// JPEG até 1280 px, com carimbo (tipo · equipamento · data/hora) gravado na imagem.
+function carregarImg(file){ return new Promise((res,rej)=>{ const u=URL.createObjectURL(file), i=new Image(); i.onload=()=>{ URL.revokeObjectURL(u); res(i); }; i.onerror=rej; i.src=u; }); }
+async function processarFoto(file,legenda){
+  const img=await carregarImg(file), MAX=1280, k=Math.min(1,MAX/Math.max(img.naturalWidth,img.naturalHeight));
+  const w=Math.round(img.naturalWidth*k), h=Math.round(img.naturalHeight*k);
+  const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d'); g.drawImage(img,0,0,w,h);
+  const a=new Date(), txt=legenda+' · '+pad(a.getDate())+'/'+pad(a.getMonth()+1)+'/'+a.getFullYear()+' '+pad(a.getHours())+':'+pad(a.getMinutes());
+  const fs=Math.max(14,Math.round(w/42)); g.font='600 '+fs+'px sans-serif';
+  g.fillStyle='rgba(0,0,0,.55)'; g.fillRect(0,h-fs*2,Math.min(w,g.measureText(txt).width+fs*1.5),fs*2);
+  g.fillStyle='#fff'; g.fillText(txt,fs*.75,h-fs*.65);
+  return c.toDataURL('image/jpeg',.72);
+}
+async function enviarFoto(id,tipo,imagem,fotoId){
+  fotoId=fotoId||uid();
+  try{
+    if(fila().some(x=>x.tipo==='salvar'&&x.id===id)) throw new ErroRede('locação ainda na fila');
+    const r=await loc({action:'foto-enviar',id,tipo,imagem,fotoId}); mesclar(r.locacao); return true;
+  }catch(err){
+    if(!(err instanceof ErroRede)) throw err;
+    await idbOp('readwrite',s=>s.put({fotoId,id,tipo,imagem,em:new Date().toISOString()})); pintarConexao(); return false;
+  }
+}
+async function gradeFotos(el,o){
+  const desenhar=async()=>{
+    let itens;
+    if(o.pend) itens=o.pend.map(p=>({k:p.fotoId,src:p.imagem,pf:'nova'}));
+    else{
+      const l=LOC.find(x=>x.id===o.id)||{fotos:[]};
+      const pend=(await fotosPendentes()).filter(p=>p.id===o.id&&p.tipo===o.tipo);
+      itens=(l.fotos||[]).filter(f=>f.tipo===o.tipo).map(f=>({k:f.path,src:fotoURL(f.path),cap:new Date(f.em).toLocaleString('pt-BR')+(f.por?' · '+f.por:'')}))
+        .concat(pend.map(p=>({k:'p:'+p.fotoId,src:p.imagem,pf:'📴 a enviar'})));
+    }
+    el.innerHTML=itens.map(it=>'<div class="ft"><img src="'+esc(it.src)+'" data-zoom="'+esc(it.k)+'" alt="">'+(it.pf?'<div class="pf">'+it.pf+'</div>':'')+'<button type="button" class="x" data-rm="'+esc(it.k)+'">×</button></div>').join('')
+      +'<label class="add-foto"><div><b>📷</b>Foto</div><input type="file" accept="image/*" multiple></label>';
+    el.querySelectorAll('[data-zoom]').forEach(i=>i.addEventListener('click',()=>{ const it=itens.find(x=>x.k===i.dataset.zoom); visor(it.src,(o.tipo==='recebimento'?'Recebimento':'Entrega')+(it.cap?' · '+it.cap:'')); }));
+    el.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',async()=>{
+      if(!b.dataset.armado){ b.dataset.armado='1'; b.textContent='🗑'; b.style.background='var(--off)'; toast('Toque de novo para apagar'); setTimeout(()=>{ if(b.isConnected){ delete b.dataset.armado; b.textContent='×'; b.style.background=''; } },3000); return; }
+      const k=b.dataset.rm;
+      if(o.pend){ o.pend.splice(o.pend.findIndex(p=>p.fotoId===k),1); }
+      else if(k.startsWith('p:')){ await idbOp('readwrite',s=>s.delete(k.slice(2))); }
+      else{ try{ const r=await loc({action:'foto-remover',id:o.id,path:k}); mesclar(r.locacao); }catch(err){ return toast(err instanceof ErroRede?'Sem conexão — tente com sinal':err.message); } }
+      desenhar(); render();
+    }));
+    const inp=el.querySelector('input[type=file]');
+    inp.addEventListener('change',async()=>{
+      const files=[...inp.files]; if(!files.length) return;
+      toast('Processando '+files.length+' foto(s)…');
+      const legenda=(o.tipo==='recebimento'?'RECEBIMENTO':'ENTREGA')+' · '+o.nome();
+      let n=0, fora=0;
+      for(const fl of files){
+        try{
+          const imagem=await processarFoto(fl,legenda);
+          if(o.pend){ o.pend.push({fotoId:uid(),imagem}); n++; }
+          else{ (await enviarFoto(o.id,o.tipo,imagem))?n++:fora++; }
+        }catch(err){ toast('Foto não enviada: '+err.message); }
+      }
+      if(!o.pend) toast(fora?fora+' foto(s) guardada(s) no celular — envia com sinal':n+' foto(s) enviada(s)');
+      desenhar(); render();
+    });
+  };
+  await desenhar();
+}
+function visor(src,cap){
+  const d=document.createElement('div'); d.className='visor';
+  d.innerHTML='<img src="'+esc(src)+'" alt=""><div class="cap">'+esc(cap)+' · toque para fechar</div>';
+  d.addEventListener('click',()=>d.remove()); document.body.appendChild(d);
+}
+
+// ── detalhe ──
+function abrirDetalhe(id){
+  const l=LOC.find(x=>x.id===id); if(!l) return;
+  const s=situacao(l), c=custo(l);
+  const hist=[{d:l.entrada,t:'Entrada · contrato até '+br((l.renovacoes||[])[0]?l.renovacoes[0].de:l.fim)}]
+    .concat((l.renovacoes||[]).map(r=>({d:r.em,t:'Renovado: '+br(r.de)+' → '+br(r.para)})))
+    .concat(l.retirada&&l.status!=='devolvido'?[{d:l.retirada,t:'Retirada agendada'}]:[])
+    .concat(l.devolucao?[{d:l.devolucao,t:'Devolvido'}]:[]).sort((a,b)=>a.d.localeCompare(b.d));
+  abrirFolha('<h2>'+esc(l.nome)+(Number(l.qtd)>1?' ×'+l.qtd:'')+'</h2><div class="corpo">'
+    +'<div class="dia" style="margin:0 0 8px">🏢 '+esc(l.fornecedor||'—')+' · '+PER[l.periodo].nome+' · 🏗️ '+esc(nomeObra(l))+'</div>'
+    +'<dl class="kv"><dt>Situação</dt><dd>'+({ok:'🟢 Ativo',alerta:'🟠 Em alerta',vencido:'🔴 Vencido',devolvido:'⚪ Devolvido'}[s.k])+(s.dias!=null?' ('+(s.dias<0?Math.abs(s.dias)+'d vencido':s.dias+'d)'):'')+'</dd>'
+    +'<dt>Entrada</dt><dd>'+br(l.entrada)+'</dd><dt>Fim do contrato</dt><dd>'+br(l.fim)+'</dd>'
+    +(l.devolucao?'<dt>Devolução</dt><dd>'+br(l.devolucao)+'</dd>':'')
+    +'<dt>Valor por período</dt><dd>'+din(l.valor)+'</dd><dt>Cobrado</dt><dd>'+(c.manual?'valor manual':esc(c.periodos))+'</dd>'
+    +'<dt>Aluguel</dt><dd>'+din(c.aluguel)+'</dd>'+(c.extras?'<dt>Outros custos</dt><dd>'+din(c.extras)+'</dd>':'')
+    +'<dt><b>Total</b></dt><dd><b>'+din(c.total)+'</b></dd><dt>Cobrança</dt><dd>'+(l.cobranca==='cheio'?'Período cheio':'Proporcional')+'</dd>'
+    +(l.codigo?'<dt>Código</dt><dd>'+esc(l.codigo)+'</dd>':'')+'</dl>'
+    +(l.obs?'<div class="eq-obs" style="margin-bottom:10px">'+esc(l.obs)+'</div>':'')
+    +'<div class="lbl">📷 Recebimento</div><div class="fotos" id="d-rec"></div>'
+    +'<div class="lbl mt">📷 Entrega / devolução</div><div class="fotos" id="d-ent"></div>'
+    +'<div class="lbl mt">Histórico</div><ul class="hist">'+hist.map(h=>'<li><b>'+br(h.d)+'</b> — '+esc(h.t)+'</li>').join('')+'</ul>'
+    +'<div class="dia">Cadastrado por '+esc(l.criadoPor||'—')+(l.salvoPor?' · última alteração por '+esc(l.salvoPor)+' em '+new Date(l.salvoEm).toLocaleString('pt-BR'):'')+'</div>'
+    +((l.renovacoes||[]).length&&l.status!=='devolvido'?'<button class="link" data-a="desfazer-ren" data-id="'+esc(l.id)+'">↩ Desfazer última renovação</button><br>':'')
+    +(l.status==='devolvido'?'<button class="link" data-a="reabrir" data-id="'+esc(l.id)+'">↩ Reabrir (desfazer devolução)</button><br>':'')
+    +(l.status!=='devolvido'?'<button class="link" data-a="ics-um" data-id="'+esc(l.id)+'">📅 Lembrete no Calendário</button>':'')
+    +'</div><div class="pe"><button class="btn sec" data-a="editar" data-id="'+esc(l.id)+'">✏️ Editar</button>'
+    +(l.status!=='devolvido'?'<button class="btn pri" data-ren="'+esc(l.id)+'">🔄 Renovar</button><button class="btn sec" data-dev="'+esc(l.id)+'">📦 Devolver</button>':'')+'</div>');
+  gradeFotos($('d-rec'),{id:l.id,tipo:'recebimento',nome:()=>l.nome});
+  gradeFotos($('d-ent'),{id:l.id,tipo:'entrega',nome:()=>l.nome});
+}
+
+// ── renovar / devolver ──
+function abrirRenovar(id){
+  const l=LOC.find(x=>x.id===id), sug=addPer(l.fim,l.periodo);
+  abrirFolha('<h2>🔄 Renovar · '+esc(l.nome)+'</h2><div class="corpo">'
+    +'<div class="dia" style="margin:0 0 8px">Fim atual: '+br(l.fim)+'. Ajuste a nova data se necessário.</div>'
+    +'<div class="lbl">Nova data de fim</div><input id="rn-d" class="field" type="date" min="'+l.fim+'" value="'+sug+'">'
+    +'<div class="total mt" id="rn-t"></div></div>'
+    +'<div class="pe"><button class="btn sec" data-a="fechar">Cancelar</button><button class="btn pri" id="rn-ok">Confirmar renovação</button></div>');
+  const upd=()=>{ const v=$('rn-d').value, c0=custo(l).total, c1=v?custo(Object.assign({},l,{fim:v})).total:c0;
+    $('rn-t').innerHTML='<div><small>Acréscimo no custo</small>Novo total '+din(c1)+'</div><b>+'+din(c1-c0)+'</b>'; };
+  $('rn-d').addEventListener('input',upd); upd();
+  $('rn-ok').addEventListener('click',async()=>{
+    const v=$('rn-d').value; if(!v||v<=l.fim) return toast('A nova data precisa ser depois de '+br(l.fim));
+    const reg=Object.assign({},l,{fim:v,renovacoes:(l.renovacoes||[]).concat([{em:hoje(),de:l.fim,para:v}])});
+    try{ await salvarLoc(reg,'Renovado até '+br(v)); fecharFolha(); }catch(err){ toast(err.message); }
+  });
+}
+function abrirDevolver(id){
+  const l=LOC.find(x=>x.id===id);
+  abrirFolha('<h2>📦 Devolução · '+esc(l.nome)+'</h2><div class="corpo">'
+    +'<div class="lbl">Data</div><input id="dv-d" class="field" type="date" value="'+(l.retirada&&l.retirada>hoje()?l.retirada:hoje())+'">'
+    +'<div class="dia">Hoje (ou antes) para confirmar a devolução; data futura para agendar a retirada.</div>'
+    +'<div class="lbl mt">📷 Fotos da entrega (estado na devolução)</div><div class="fotos" id="dv-f"></div>'
+    +'<div class="total" id="dv-t"></div></div>'
+    +'<div class="pe" style="flex-direction:column"><button class="btn warn full" id="dv-ag">📅 Agendar retirada</button>'
+    +'<button class="btn pri full" id="dv-ok">📦 Confirmar devolução</button></div>');
+  const upd=()=>{ const v=$('dv-d').value; $('dv-ag').disabled=!v||v<=hoje(); $('dv-ok').disabled=!v||v>hoje()||v<l.entrada;
+    if(v){ const c=custo(Object.assign({},l,{status:'devolvido',devolucao:v}));
+      $('dv-t').innerHTML='<div><small>'+(c.manual?'Valor manual':esc(c.periodos)+' cobrado(s)')+'</small>'+(v>hoje()?'Custo previsto':'Custo final')+'</div><b>'+din(c.total)+'</b>'; } };
+  $('dv-d').addEventListener('input',upd); upd();
+  gradeFotos($('dv-f'),{id:l.id,tipo:'entrega',nome:()=>l.nome});
+  $('dv-ag').addEventListener('click',async()=>{ const v=$('dv-d').value;
+    try{ await salvarLoc(Object.assign({},LOC.find(x=>x.id===id),{retirada:v}),'Retirada agendada para '+br(v)); fecharFolha(); }catch(err){ toast(err.message); } });
+  $('dv-ok').addEventListener('click',async()=>{ const v=$('dv-d').value;
+    try{ await salvarLoc(Object.assign({},LOC.find(x=>x.id===id),{status:'devolvido',devolucao:v,retirada:null}),'Devolução registrada'); fecharFolha(); }catch(err){ toast(err.message); } });
+}
+
+// ── mensagens (WhatsApp, como o Efetivo) ──
+function textoAlertas(){
+  const l=ativos().filter(daObra).filter(emAlerta).sort(porFim);
+  const v=$('f-obra').value;
+  return ['Locações CMR — vencimentos.','🗓️ '+br(hoje()),(v&&v!==TODAS?'🏗️ '+nomeObra({obraId:v}):'🏗️ Todas as obras'),'']
+    .concat(l.map((x,i)=>{ const s=situacao(x); return (i+1)+'- '+x.nome+(Number(x.qtd)>1?' ×'+x.qtd:'')+' ('+(x.fornecedor||'—')+') – '
+      +(s.dias<0?'*vencido há '+Math.abs(s.dias)+'d*':s.dias===0?'*vence hoje*':'vence em '+s.dias+'d')+' ('+br(x.fim)+')'+((v&&v!==TODAS)?'':' · '+nomeObra(x))+'.'; }))
+    .concat(['','Renovar ou devolver?']).join('\n');
+}
+function textoValores(){
+  const l=listaValores(), v=$('v-obra').value, at=l.filter(x=>x.status!=='devolvido');
+  const tot=a=>a.reduce((s,x)=>s+custo(x).total,0);
+  return ['Locações CMR — valores.','🗓️ '+br(hoje()),(v&&v!==TODAS?'🏗️ '+nomeObra({obraId:v}):'🏗️ Todas as obras'),'',
+    'Ativos ('+at.length+'):'].concat(at.sort(porFim).map((x,i)=>(i+1)+'- '+x.nome+(Number(x.qtd)>1?' ×'+x.qtd:'')+' ('+(x.fornecedor||'—')+') até '+br(x.fim)+' – '+din(custo(x).total)+'.'))
+    .concat(['','*Total ativos: '+din(tot(at))+'*','*Total geral (com devolvidos): '+din(tot(l))+'*']).join('\n');
+}
+function abrirMensagem(txt){
+  window._msg=txt;
+  abrirFolha('<h2>Mensagem</h2><div class="corpo"><div class="previa">'+esc(txt)+'</div></div>'
+    +'<div class="pe"><button class="btn sec" data-a="copiar">Copiar</button><button class="btn zap" data-a="whats">WhatsApp</button></div>');
+}
+async function copiar(t){
+  try{ await navigator.clipboard.writeText(t); toast('Copiado'); }
+  catch(e){ const x=document.createElement('textarea'); x.value=t; document.body.appendChild(x); x.select(); try{ document.execCommand('copy'); toast('Copiado'); }catch(_){ toast('Não consegui copiar'); } x.remove(); }
+}
+
+// ── calendário (.ics) e planilha ──
+function icsEsc(s){ return String(s||'').replace(/[\\;,]/g,c=>'\\'+c).replace(/\n/g,'\\n'); }
+function gerarICS(lista){
+  const st=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+/,'');
+  return ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//CMR Empreendimentos//Locacoes//PT','CALSCALE:GREGORIAN']
+    .concat(lista.map(l=>['BEGIN:VEVENT','UID:'+l.id+'-'+l.fim.replace(/-/g,'')+'@cmr-locacoes','DTSTAMP:'+st,
+      'DTSTART;VALUE=DATE:'+l.fim.replace(/-/g,''),'DTEND;VALUE=DATE:'+addPer(l.fim,'diaria').replace(/-/g,''),
+      'SUMMARY:'+icsEsc('Vence locação: '+l.nome+(l.fornecedor?' ('+l.fornecedor+')':'')),
+      'DESCRIPTION:'+icsEsc('Obra: '+nomeObra(l)+'\nEntrada: '+br(l.entrada)+'\nCódigo: '+(l.codigo||'—')+'\nRenovar ou devolver.'),
+      'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEsc('Locação vence em '+cfg.alertaDias+' dias: '+l.nome),'TRIGGER:-P'+cfg.alertaDias+'D','END:VALARM',
+      'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEsc('Locação vence hoje: '+l.nome),'TRIGGER:PT8H','END:VALARM','END:VEVENT'].join('\r\n')))
+    .concat(['END:VCALENDAR']).join('\r\n');
+}
+async function entregarArquivo(nome,conteudo,mime){
+  const blob=new Blob([conteudo],{type:mime}), file=new File([blob],nome,{type:mime});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){ try{ await navigator.share({files:[file],title:nome}); return; }catch(e){ if(e.name==='AbortError') return; } }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=nome; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000);
+}
+function exportarCSV(){
+  const cel=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"', n=v=>(Number(v)||0).toFixed(2).replace('.',',');
+  const cab=['Equipamento','Qtd','Fornecedor','Obra','Período','Cobrança','Entrada','Fim','Devolução','Situação','Renovações','Valor/período','Cobrado','Aluguel','Outros custos','Total','Código','Observações','Cadastrado por'];
+  const lin=listaValores().slice().sort((a,b)=>a.entrada.localeCompare(b.entrada)).map(l=>{ const c=custo(l);
+    return [l.nome,l.qtd,l.fornecedor,nomeObra(l),PER[l.periodo].nome,l.cobranca==='cheio'?'período cheio':'proporcional',br(l.entrada),br(l.fim),l.devolucao?br(l.devolucao):'',
+      situacao(l).k,(l.renovacoes||[]).length,n(l.valor),c.manual?'manual':c.periodos,n(c.aluguel),n(c.extras),n(c.total),l.codigo,l.obs,l.criadoPor].map(cel).join(';'); });
+  entregarArquivo('locacoes-'+hoje()+'.csv','﻿'+[cab.map(cel).join(';')].concat(lin).join('\r\n'),'text/csv');
+}
+
+// ── ajustes e notificação ──
+function abrirAjustes(){
+  abrirFolha('<h2>Ajustes</h2><div class="corpo">'
+    +'<div class="lbl">Alertar com quantos dias de antecedência</div><input id="aj-d" class="field" type="number" inputmode="numeric" min="0" max="60" value="'+cfg.alertaDias+'">'
+    +'<div class="dia">Vale para este celular.</div>'
+    +'<div class="lbl mt">Avisos</div>'
+    +'<button class="btn sec full" data-a="notif">'+(cfg.notificar&&'Notification' in window&&Notification.permission==='granted'?'🔔 Notificações ativadas':'🔔 Ativar notificação diária')+'</button>'
+    +'<button class="btn sec full mt" data-a="ics">📅 Enviar vencimentos ao Calendário</button>'
+    +'<div class="dia">O Calendário avisa mesmo com o app fechado ('+cfg.alertaDias+' dias antes e no dia). A notificação do app aparece ao abri-lo.</div>'
+    +'</div><div class="pe"><button class="btn pri" data-a="fechar">Fechar</button></div>');
+  $('aj-d').addEventListener('change',e=>{ cfg.alertaDias=Math.min(60,Math.max(0,parseInt(e.target.value,10)||0)); salvarCfg(); render(); });
+}
+async function ativarNotif(){
+  if(!('Notification' in window)) return toast('No iPhone, instale o app na tela inicial (iOS 16.4+) para receber notificações.');
+  const p=await Notification.requestPermission(); cfg.notificar=p==='granted'; cfg.ultimaNotif=null; salvarCfg();
+  toast(cfg.notificar?'Notificações ativadas':'Permissão negada nos ajustes do celular'); if(cfg.notificar) notificar(); abrirAjustes();
+}
+async function notificar(){
+  if(!cfg.notificar||!('Notification' in window)||Notification.permission!=='granted'||cfg.ultimaNotif===hoje()) return;
+  const l=ativos().filter(emAlerta).sort(porFim); if(!l.length) return;
+  const venc=l.filter(x=>situacao(x).k==='vencido').length;
+  const corpo=l.slice(0,4).map(x=>{ const d=situacao(x).dias; return x.nome+': '+(d<0?Math.abs(d)+'d vencido':d===0?'vence hoje':'vence em '+d+'d'); }).join('\n');
+  try{ const reg=await navigator.serviceWorker.ready;
+    await reg.showNotification(venc?venc+' locação(ões) vencida(s)':l.length+' locação(ões) vencendo',{body:corpo,icon:'/locacoes-icon-192.png',tag:'locacoes'});
+    cfg.ultimaNotif=hoje(); salvarCfg(); }catch(_){}
+}
+
+// ── abas e ações ──
+function trocarAba(q){
+  aba=q; ['eq','ag','val'].forEach(x=>{ $('tab-'+x).classList.toggle('on',x===q); $('pg-'+x).classList.toggle('hidden',x!==q); });
+  render(); window.scrollTo(0,0);
+}
+document.addEventListener('click',async ev=>{
+  const t=ev.target.closest('[data-a],[data-aba],[data-f],[data-ren],[data-dev],[data-ver]'); if(!t) return;
+  const d=t.dataset;
+  if(d.aba) return trocarAba(d.aba);
+  if(d.f){ filtro=d.f; return renderLista(); }
+  if(d.ren){ ev.stopPropagation(); return abrirRenovar(d.ren); }
+  if(d.dev){ ev.stopPropagation(); return abrirDevolver(d.dev); }
+  if(d.ver&&!d.a) return abrirDetalhe(d.ver);
+  switch(d.a){
+    case 'recarregar': return recarregar();
+    case 'sair': return sair();
+    case 'ajustes': return abrirAjustes();
+    case 'fechar': return fecharFolha();
+    case 'novo': return abrirForm();
+    case 'editar': return abrirForm(d.id);
+    case 'instalar': return instalar();
+    case 'notif': return ativarNotif();
+    case 'csv': return exportarCSV();
+    case 'ics': { const l=ativos().filter(daObra); if(!l.length) return toast('Nenhuma locação ativa'); return entregarArquivo('vencimentos-'+hoje()+'.ics',gerarICS(l),'text/calendar'); }
+    case 'ics-um': { const l=LOC.find(x=>x.id===d.id); return entregarArquivo(l.nome.replace(/\W+/g,'-')+'.ics',gerarICS([l]),'text/calendar'); }
+    case 'msg-alertas': return abrirMensagem(textoAlertas());
+    case 'msg-valores': return abrirMensagem(textoValores());
+    case 'copiar': return copiar(window._msg);
+    case 'whats': location.href='https://wa.me/?text='+encodeURIComponent(window._msg); return;
+    case 'excluir': {
+      const l=LOC.find(x=>x.id===d.id);
+      if(!confirm('Excluir "'+l.nome+'" e todas as fotos? Isso vale para todos os usuários.')) return;
+      LOC=LOC.filter(x=>x.id!==l.id);
+      try{ await loc({action:'excluir',id:l.id}); toast('Locação excluída'); }
+      catch(err){ if(err instanceof ErroRede){ enfileirar({tipo:'excluir',id:l.id}); toast('📴 Exclusão guardada — envia com sinal'); } else { toast(err.message); await recarregar(); } }
+      guardarBase(); fecharFolha(); return render();
+    }
+    case 'desfazer-ren': {
+      const l=LOC.find(x=>x.id===d.id), r=l.renovacoes[l.renovacoes.length-1];
+      if(!confirm('Desfazer renovação? O fim volta de '+br(r.para)+' para '+br(r.de)+'.')) return;
+      try{ await salvarLoc(Object.assign({},l,{fim:r.de,renovacoes:l.renovacoes.slice(0,-1)}),'Renovação desfeita'); fecharFolha(); }catch(err){ toast(err.message); } return;
+    }
+    case 'reabrir': {
+      const l=LOC.find(x=>x.id===d.id);
+      if(!confirm('Reabrir esta locação? Ela volta para os ativos.')) return;
+      try{ await salvarLoc(Object.assign({},l,{status:'ativo',devolucao:null}),'Locação reaberta'); fecharFolha(); }catch(err){ toast(err.message); } return;
+    }
+  }
+});
+
+// ── instalação na tela inicial ──
+// Escopo '/locacoes' de propósito, como o Efetivo: não toca no Sistema RH.
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('/locacoes-sw.js',{scope:'/locacoes'}).catch(()=>{}));
+}
+const instalado=()=>window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
+const ehIOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent);
+window.addEventListener('beforeinstallprompt',ev=>{ ev.preventDefault(); promptInstalar=ev; if(!instalado()) $('banner-inst').classList.remove('hidden'); });
+window.addEventListener('appinstalled',()=>{ $('banner-inst').classList.add('hidden'); promptInstalar=null; toast('App instalado'); });
+async function instalar(){
+  if(promptInstalar){ promptInstalar.prompt(); const r=await promptInstalar.userChoice.catch(()=>null); if(r&&r.outcome==='accepted') $('banner-inst').classList.add('hidden'); promptInstalar=null; return; }
+  abrirFolha('<h2>Instalar na tela inicial</h2><div class="corpo">'
+    +(ehIOS()?'<ol class="passos"><li>Toque em <b>Compartilhar</b> (o quadrado com a seta para cima), na barra de baixo do Safari.</li><li>Role e toque em <b>Adicionar à Tela de Início</b>.</li><li>Toque em <b>Adicionar</b>.</li></ol>'
+      :'<ol class="passos"><li>Toque no menu <b>⋮</b> do Chrome.</li><li>Toque em <b>Instalar app</b> (ou "Adicionar à tela inicial").</li><li>Confirme.</li></ol>')
+    +'<p class="dia">Instalado, abre em tela cheia e funciona mesmo sem sinal na obra.</p></div><div class="pe"><button class="btn pri" data-a="fechar">Entendi</button></div>');
+}
+
+// ── partida ──
+(function(){
+  try{
+    token=localStorage.getItem(TOKEN_KEY); usuario=JSON.parse(localStorage.getItem(USER_KEY)||'null');
+    // Quem já entrou no Efetivo neste celular não precisa digitar a senha de novo.
+    if(!token&&localStorage.getItem('cmr_efetivo_token')){ token=localStorage.getItem('cmr_efetivo_token'); usuario=JSON.parse(localStorage.getItem('cmr_efetivo_user')||'null'); }
+  }catch(_){}
+  if(token) iniciar(); else $('tela-login').classList.remove('hidden');
+  if(ehIOS()&&!instalado()) $('banner-inst').classList.remove('hidden');
+})();
+</script>
+</body>
+</html>
