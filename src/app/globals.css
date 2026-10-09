@@ -1,0 +1,161 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Serif+Display&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ───────────────────────────────────────────
+   Tema claro (padrão no celular) — paleta do sistema de RH / efetivo:
+   fundo #F2F2F4, painéis brancos, vermelho CMR #C8102E
+─────────────────────────────────────────── */
+:root {
+  --color-bg:            #F2F2F4;
+  --color-surface:       #FFFFFF;
+  --color-fg:            #1F1F23;
+  --color-muted:         #66666E;
+  --color-muted-2:       #85858D;
+  --color-border:        #DCDCE0;
+  --color-border-strong: #C4C4CB;
+  --glass-bg:            #FFFFFF;
+  --glass-bg-sm:         #FFFFFF;
+  --glass-border:        #DCDCE0;
+  --glass-shadow:        0 1px 2px rgba(16,24,40,.06), 0 10px 26px -12px rgba(16,24,40,.28);
+  --input-bg:            #FFFFFF;
+  --input-border:        #CFCFD6;
+
+  --ink-rgb:             0 0 0;
+  --fg-rgb:              31 31 35;
+  --accent:              #C8102E;
+  --accent-2:            #9E0C24;
+  --accent-rgb:          200 16 46;
+  --accent-gradient:     linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  --on-accent:           #FFFFFF;
+  --header-bg:           rgba(242,242,244,0.92);
+  --panel-bg:            #FFFFFF;
+  --c-ok:                #00875A;
+  --c-amber:             #8A6D00;
+  --c-rose:              #C81B1B;
+  --c-sky:               #1F5FBF;
+  --c-indigo:            #4F46E5;
+  --c-orange:            #C2410C;
+  --c-brown:             #9A5B13;
+  color-scheme: light;
+}
+
+/* Tema escuro — o mesmo do ERP (teal) */
+[data-theme="dark"] {
+  --color-bg:            #080b12;
+  --color-surface:       #0d1117;
+  --color-fg:            #E2EAF4;
+  --color-muted:         rgba(226,234,244,0.55);
+  --color-muted-2:       rgba(226,234,244,0.35);
+  --color-border:        rgba(255,255,255,0.08);
+  --color-border-strong: rgba(255,255,255,0.16);
+  --glass-bg:            linear-gradient(135deg,rgba(255,255,255,0.055) 0%,rgba(255,255,255,0.02) 100%);
+  --glass-bg-sm:         rgba(255,255,255,0.04);
+  --glass-border:        rgba(255,255,255,0.08);
+  --glass-shadow:        0 4px 24px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.07);
+  --input-bg:            rgba(255,255,255,0.04);
+  --input-border:        rgba(255,255,255,0.12);
+
+  --ink-rgb:             255 255 255;
+  --fg-rgb:              226 234 244;
+  --accent:              #00D4B4;
+  --accent-2:            #38BDF8;
+  --accent-rgb:          0 212 180;
+  --on-accent:           #080b12;
+  --header-bg:           rgba(8,11,18,0.88);
+  --panel-bg:            #0d1117;
+  --c-ok:                #00D4B4;
+  --c-amber:             #FBBF24;
+  --c-rose:              #FB7185;
+  --c-sky:               #38BDF8;
+  --c-indigo:            #818CF8;
+  --c-orange:            #F97316;
+  --c-brown:             #D4A15A;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-fg);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100dvh;
+}
+
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+.glass-sm {
+  background: var(--glass-bg-sm);
+  border: 1px solid var(--glass-border);
+}
+
+.btn-accent {
+  background: var(--accent-gradient);
+  color: var(--on-accent);
+  font-weight: 600;
+  transition: opacity .2s, transform .15s;
+}
+.btn-accent:active { transform: scale(.98); }
+.btn-accent:disabled { opacity: .5; }
+
+.btn-ghost {
+  background: rgb(var(--ink-rgb) / 0.05);
+  border: 1px solid var(--color-border);
+  color: var(--color-fg);
+  font-weight: 600;
+  transition: background .2s, transform .15s;
+}
+.btn-ghost:active { transform: scale(.98); }
+
+.input-glass {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--color-fg);
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-size: 16px; /* 16px evita o zoom automático do iOS */
+  width: 100%;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+.input-glass::placeholder { color: rgb(var(--fg-rgb) / 0.35); }
+.input-glass:focus {
+  border-color: rgb(var(--accent-rgb) / 0.5);
+  box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 0.1);
+}
+
+.label-field {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(var(--fg-rgb) / 0.55);
+  margin-bottom: 6px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.page-enter { animation: slideUp .3s cubic-bezier(.16,1,.3,1); }
+@keyframes slideUp { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
